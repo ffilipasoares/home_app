@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// Single-user app: every read/write must both (a) be scoped to the
+// signed-in user's own uid subtree, and (b) come from the one allow-listed
+// email — matching the client-side check in app/src/lib/auth.tsx, but
+// enforced here where it can't be bypassed by editing client code.
+// The Cloud Functions service account (Admin SDK) bypasses these rules
+// entirely, which is how the recompute trigger writes dashboards/{month}.
+function isOwner(uid) {
+  return request.auth != null
+    && request.auth.uid == uid
+    && request.auth.token.email == "filipaferreirasoares12@gmail.com"; // <- change if you use a different Google account
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // Deny everything else by default (no rule = no access in Firestore).
+  }
+}
