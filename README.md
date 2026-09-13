@@ -13,8 +13,10 @@ for the full design and phased build plan.
 Data model, security rules, dashboard recomputation, and the installable
 PWA (auth, dashboard, transactions, CSV import, settings) are built. Import
 still means uploading a CSV export by hand, but each row is now categorized
-automatically on arrival — a learned-rules cache for known merchants, a
-Gemini call for new ones, with anything low-confidence left as a pre-filled
+automatically on arrival by a real ADK agent (`@google/adk`, `functions/src/categorize.ts`)
+— an exact-match cache for known merchants, and for a new one, an agent
+that can consult how similar merchants were categorized before rather than
+guessing blind, with anything low-confidence left as a pre-filled
 suggestion you confirm with one tap. Salary/other income is entered per
 month directly on the Dashboard, so reviewing an old month always shows
 what actually applied then.
@@ -27,9 +29,10 @@ Firebase project and installed on your iPhone.**
 ```
 app/         React + Vite PWA — dashboard (incl. per-month income), transactions,
              CSV import, settings
-functions/   Cloud Functions: auto-categorizes each new transaction (cache,
-             then Gemini), learns from manual corrections, and recomputes
-             the monthly dashboard on every transaction/income write
+functions/   Cloud Functions: an ADK categorization agent auto-categorizes
+             each new transaction (exact-match cache, then the agent),
+             learns from manual corrections, and recomputes the monthly
+             dashboard on every transaction/income write
 firestore.rules, firestore.indexes.json, firebase.json — Firebase config
 docs/ARCHITECTURE.md — full architecture design + roadmap
 SETUP.md     — how to deploy this to your own Firebase project

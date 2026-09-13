@@ -1,7 +1,7 @@
 # Architecture Design — Home Finance Agent
 
-Status: **Phase 1 built** (manual CSV import; categorization is now
-automatic — see below). Last updated 2026-09-13.
+Status: **Phase 1 built** — an ADK agent categorizes on import (manual CSV
+input still). Last updated 2026-09-13.
 
 ## 1. Goal & scope
 
@@ -234,26 +234,53 @@ Idempotency: every transaction is keyed by the aggregator's stable
 external transaction id, so a retried or overlapping run never
 double-counts — a write is always an upsert, never an append.
 
-## 5. Categorization (built as a direct Gemini call, not an ADK agent)
+## 5. Categorization agent
 
-The original plan (§3.1) was to structure this as an ADK agent even while
-running it outside Agent Engine. In practice, Phase 1 turned out to be one
-bounded call — "pick 1 of N categories for this transaction, with a
-confidence score" — with no multi-step planning, no tool the model
-chooses *whether* to call, and nothing an agent framework's orchestration
-loop would add over calling `@google/genai`'s `generateContent` directly
-from the existing `onTransactionWrite` Cloud Function. Wrapping a single
-structured-output call in ADK's Agent/Tool abstraction would have been
-ceremony, not structure, so `functions/src/categorize.ts` just calls
-Gemini directly, and `functions/src/index.ts` orchestrates the surrounding
-steps in plain code:
+Built with **`@google/adk`** (the JS/TS port of Google's Agent Development
+Kit, `npm i @google/adk`) — a real `LlmAgent`/tool/`Runner` agent, not a
+bare `generateContent` call with a JSON schema. This corrects an earlier
+version of this section, which argued a single structured-output call
+made ADK's abstraction "ceremony, not structure" for this task — that
+argument substituted engineering judgment for an explicit product
+requirement (build an agent) instead of surfacing the tradeoff and
+asking. The corrected design (`functions/src/categorize.ts`):
+
+- **`transaction_categorizer`** (`Agent`, aliased from ADK's `LlmAgent`) —
+  given the merchant, amount, and the user's own category list, decides
+  for itself how to reach an answer rather than following one hardcoded
+  path.
+- **`list_recently_categorized_merchants`** tool — the agent may call this
+  if the merchant doesn't obviously match a category on its own, to see
+  how similar merchants were categorized before (e.g. "UBER EATS" has no
+  exact-match rule yet, but "UBER" → Transport does — a similarity
+  judgment a rigid lookup can't make, and the reason this is a genuine
+  improvement over the original design, not just a reframing of it).
+- **`record_categorization`** tool — the agent commits its final
+  `{category, confidence}` through a tool call (validated against the
+  real category list), rather than free text or a response schema.
+- Run via `InMemoryRunner` (ephemeral session — each categorization is one
+  independent, stateless decision; nothing here needs a durable session).
+
+An **exact-match cache hit** (`categoryRules/{merchantNormalized}`) is
+still checked *before* the agent is ever invoked, in plain deterministic
+code (`index.ts` → `autoCategorize`) — that isn't a shortcut around
+"real agent work," it's recognizing that an exact string match has
+nothing to reason about. What reaches the agent is specifically the part
+that requires judgment: a merchant with no exact match.
 
 | Step | Where |
 |---|---|
-| Cache lookup (`categoryRules/{merchantNormalized}`) — avoids a Gemini call for known merchants | `index.ts` → `autoCategorize` |
-| Gemini structured-output call → `{category, confidence}`, validated against the real category list | `categorize.ts` → `categorizeTransaction` |
+| Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `index.ts` → `autoCategorize`, `categoryRules.ts` → `findExactCategoryRule` |
+| Agent run: optionally consult recent rules, then commit `{category, confidence}` | `categorize.ts` → `categorizeTransaction` |
 | Cache write — only on a confident fresh guess, so an unconfirmed suggestion never becomes "ground truth" | `index.ts` → `autoCategorize` |
 | Dashboard recompute — unchanged from Phase 0, just called again after a category lands | `dashboard.ts` → `recomputeMonth` |
+
+This is also where ADK's structure was worth having in practice, not just
+in principle: `list_recently_categorized_merchants` is a tool the agent
+*decides* whether to call, and the resulting design (reasoning over
+similar merchants, not just exact match) is better than what the earlier
+direct-call version did — it just wasn't reachable without giving the
+model an actual tool-use loop to work with.
 
 This isn't a verdict on ADK — it's a verdict on *this* task's shape. A
 future step with real multi-step tool use and a model that has to decide
@@ -399,11 +426,10 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    transaction categorization UI), seeded with a CSV export you upload by
    hand. Proves the data model and UI end-to-end with zero bank-integration
    risk.
-2. **Phase 1 — automatic categorization, still on manual CSV input.** Built
-   as a direct Gemini call inside the existing `onTransactionWrite` Cloud
-   Function (§5), not wrapped in ADK — see the note there on why. Validates
-   categorization quality and the learned-rule cache before any bank
-   credentials are in play.
+2. **Phase 1 — an ADK categorization agent, still on manual CSV input.**
+   `@google/adk` `LlmAgent` + tools (§5), triggered from the existing
+   `onTransactionWrite` Cloud Function. Validates categorization quality
+   and the learned-rule cache before any bank credentials are in play.
 3. **Phase 2 — open banking sync.** Add the aggregator consent flow, the
    daily Cloud Scheduler → Cloud Run Job trigger, and cursor-based
    incremental fetch. This is the step gated on confirming your bank's

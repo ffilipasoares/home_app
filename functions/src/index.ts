@@ -4,35 +4,39 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions";
 import { recomputeMonth } from "./dashboard";
 import { categorizeTransaction, CONFIDENCE_THRESHOLD } from "./categorize";
-import type { CategoryDef, CategoryRule, Transaction } from "./types";
+import { findExactCategoryRule, listRecentCategoryRules } from "./categoryRules";
+import type { CategoryDef, Transaction } from "./types";
 
 initializeApp();
 
 /**
- * Categorizes one freshly-imported transaction: a categoryRules cache hit
- * (free, instant) if this merchant has been confirmed before, otherwise a
- * Gemini call. High confidence clears `needsReview` and teaches the cache;
- * low confidence still writes the guess as a pre-filled suggestion but
- * leaves `needsReview` set, so a human confirms it with one tap on
- * Transactions rather than picking from scratch. A failed/unclear call
- * writes nothing — the transaction just stays uncategorized for manual
- * review, same as before this agent existed.
+ * Categorizes one freshly-imported transaction. An exact-match cache hit
+ * (free, instant, purely deterministic — nothing to reason about) short-
+ * circuits before the agent is ever invoked. Only a genuine cache miss
+ * reaches the categorization agent (categorize.ts) — high confidence
+ * clears `needsReview` and teaches the cache; low confidence still writes
+ * the guess as a pre-filled suggestion but leaves `needsReview` set, so a
+ * human confirms it with one tap on Transactions rather than picking from
+ * scratch. A failed/unclear run writes nothing — the transaction just
+ * stays uncategorized for manual review, same as before this existed.
  */
 async function autoCategorize(uid: string, txId: string, tx: Transaction): Promise<void> {
   const db = getFirestore();
   const userRef = db.collection("users").doc(uid);
   const txRef = userRef.collection("transactions").doc(txId);
 
-  const ruleSnap = await userRef.collection("categoryRules").doc(tx.merchantNormalized).get();
-  if (ruleSnap.exists) {
-    const rule = ruleSnap.data() as CategoryRule;
-    await txRef.update({ category: rule.category, needsReview: false, source: "auto", confidence: 1, updatedAt: Date.now() });
+  const exactRule = await findExactCategoryRule(uid, tx.merchantNormalized);
+  if (exactRule) {
+    await txRef.update({ category: exactRule.category, needsReview: false, source: "auto", confidence: 1, updatedAt: Date.now() });
     return;
   }
 
-  const categoriesSnap = await userRef.collection("settings").doc("categories").get();
+  const [categoriesSnap, recentRules] = await Promise.all([
+    userRef.collection("settings").doc("categories").get(),
+    listRecentCategoryRules(uid),
+  ]);
   const categories = (categoriesSnap.data()?.categories as CategoryDef[] | undefined) ?? [];
-  const result = await categorizeTransaction(tx.merchantRaw, tx.amount, categories);
+  const result = await categorizeTransaction(tx.merchantRaw, tx.amount, categories, recentRules);
   if (!result) return;
 
   const confident = result.confidence >= CONFIDENCE_THRESHOLD;

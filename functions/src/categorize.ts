@@ -1,5 +1,6 @@
-import { GoogleGenAI, Type } from "@google/genai";
-import type { CategoryDef } from "./types";
+import { Agent, FunctionTool, Gemini, InMemoryRunner } from "@google/adk";
+import { z } from "zod";
+import type { CategoryDef, CategoryRule } from "./types";
 
 /**
  * A well-established, GA, cheap model — deliberately not the newest Flash-
@@ -17,76 +18,102 @@ export const CONFIDENCE_THRESHOLD = 0.7;
 
 export type CategorizationResult = { category: string; confidence: number };
 
-let client: GoogleGenAI | undefined;
-function getClient(): GoogleGenAI {
-  // Lazy singleton: constructing this reads env vars that may not be set
-  // yet at module-load time in some test harnesses, and there's no reason
-  // to pay for it on a cold start that never actually calls Gemini (a
-  // categoryRules cache hit skips this file entirely).
-  if (!client) {
-    client = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
-  }
-  return client;
-}
+/** Hard cap on tool-call rounds for one categorization run — a safety net against a pathological non-converging loop, not a limit this task should ever actually hit. */
+const MAX_EVENTS = 20;
 
 /**
- * Asks Gemini to pick the best-fit category for one transaction from the
- * user's own category list. Structured output (responseSchema), never
- * free-text parsing — and the returned category id is checked against the
- * allowed list afterward, so a malformed or hallucinated response degrades
- * to "no confident answer" (returns null) rather than writing a category
- * that doesn't exist in Settings.
+ * A real ADK agent — not a bare structured-output call. It decides for
+ * itself, via tools it can choose to call or skip, how to arrive at an
+ * answer: it may consult how similar merchants were categorized before
+ * (recentRules — useful precisely because "UBER EATS" has no exact-match
+ * rule but "UBER" -> Transport does, a judgment a rigid lookup can't make),
+ * then commits its final answer through a tool call rather than free text.
+ * This is the standard ADK tool-calling loop (LlmAgent + FunctionTool +
+ * Runner) — see docs/ARCHITECTURE.md §5 for why this replaced a plain
+ * `generateContent` call.
+ *
+ * Called only on a confirmed cache miss (see categoryRules.ts,
+ * findExactCategoryRule) — an exact match is a deterministic lookup with
+ * nothing to reason about, so it's checked before this and never costs a
+ * model call.
  */
 export async function categorizeTransaction(
   merchant: string,
   amount: number,
   categories: CategoryDef[],
+  recentRules: CategoryRule[],
 ): Promise<CategorizationResult | null> {
-  // Salary/Invest are categories the user assigns deliberately (they carry
-  // special meaning for the money-left math) — never something to guess.
   const choices = categories.filter((c) => !c.special);
   if (choices.length === 0) return null;
 
+  let captured: CategorizationResult | undefined;
+
+  const historyTool = new FunctionTool({
+    name: "list_recently_categorized_merchants",
+    description:
+      "Returns merchants confirmed before and the category each was assigned, in case this transaction's merchant is similar to one of them. Call this if the merchant name doesn't obviously match a category on its own.",
+    execute: () =>
+      recentRules.map((r) => ({ merchant: r.merchantNormalized, category: r.category })),
+  });
+
+  const recordTool = new FunctionTool({
+    name: "record_categorization",
+    description:
+      "Submits your final answer: exactly one category id from the list you were given, and your confidence (0 to 1) that it's correct. Call this exactly once, as your last step.",
+    parameters: z.object({
+      category: z.enum(choices.map((c) => c.id) as [string, ...string[]]),
+      confidence: z.number().min(0).max(1),
+    }),
+    execute: ({ category, confidence }) => {
+      captured = { category, confidence };
+      return { acknowledged: true };
+    },
+  });
+
   const categoryList = choices.map((c) => `- ${c.id}: ${c.label}`).join("\n");
-  const prompt = [
-    "Categorize this bank transaction into exactly one of the categories listed below.",
-    `Merchant/description: "${merchant}"`,
-    `Amount: ${amount} (negative = money out, positive = money in)`,
-    "",
-    "Categories (id: label):",
-    categoryList,
-    "",
-    "Respond with the category id and your confidence (0 to 1) that it's correct.",
-  ].join("\n");
+  const agent = new Agent({
+    name: "transaction_categorizer",
+    model: new Gemini({ model: MODEL, vertexai: true, project: PROJECT, location: LOCATION }),
+    instruction: [
+      "You categorize one bank transaction at a time for a personal finance app.",
+      "You may call list_recently_categorized_merchants if this merchant looks similar to one",
+      "categorized before (e.g. the same company, a different branch/reference number).",
+      "Then pick the single best-fitting category from the list below and call",
+      "record_categorization with your choice and an honest confidence score (0 to 1).",
+      "Call record_categorization exactly once, as your final step.",
+      "Never invent a category id that isn't in the list below.",
+      "",
+      "Categories (id: label):",
+      categoryList,
+    ].join("\n"),
+    tools: [historyTool, recordTool],
+  });
 
   try {
-    const response = await getClient().models.generateContent({
-      model: MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            category: { type: Type.STRING, enum: choices.map((c) => c.id) },
-            confidence: { type: Type.NUMBER },
+    // Ephemeral/in-memory: each categorization is one independent, stateless
+    // decision — there's no conversation to persist across calls, so a
+    // durable SessionService (Firestore- or Vertex-backed) would just be
+    // overhead with nothing to keep.
+    const runner = new InMemoryRunner({ agent });
+    let events = 0;
+    for await (const _event of runner.runEphemeral({
+      userId: "categorizer",
+      newMessage: {
+        parts: [
+          {
+            text: `Merchant/description: "${merchant}"\nAmount: ${amount} (negative = money out, positive = money in)`,
           },
-          required: ["category", "confidence"],
-        },
+        ],
       },
-    });
-
-    const text = response.text;
-    if (!text) return null;
-    const parsed = JSON.parse(text) as { category?: string; confidence?: number };
-    if (!parsed.category || !choices.some((c) => c.id === parsed.category)) return null;
-    const confidence = typeof parsed.confidence === "number" ? Math.max(0, Math.min(1, parsed.confidence)) : 0;
-    return { category: parsed.category, confidence };
+    })) {
+      events += 1;
+      if (events > MAX_EVENTS) break; // never expected to trip — see MAX_EVENTS
+    }
   } catch (err) {
-    // Leaves the transaction uncategorized (needsReview stays true) —
-    // there's no retry loop here, so a transient failure just means a
-    // human confirms this one transaction instead of the agent.
-    console.error("categorizeTransaction failed", err);
+    console.error("categorizeTransaction agent run failed", err);
     return null;
   }
+
+  if (!captured || !choices.some((c) => c.id === captured!.category)) return null;
+  return { category: captured.category, confidence: Math.max(0, Math.min(1, captured.confidence)) };
 }
