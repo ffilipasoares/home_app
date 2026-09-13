@@ -21,6 +21,15 @@ Phase 2 (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 4. **Project settings → Your apps → Add app → Web** (`</>` icon). Register
    it (any nickname), skip the hosting-setup prompt, and copy the
    `firebaseConfig` values it shows you — you'll need them in step 3 below.
+5. **Upgrade to the Blaze (pay-as-you-go) plan** — bottom-left of Firebase
+   Console, "Upgrade". Cloud Functions (2nd gen, what this repo uses)
+   requires Blaze even though your actual usage stays inside the free tier
+   at this volume (see [docs/ARCHITECTURE.md §10](docs/ARCHITECTURE.md#10-cost-estimate)).
+   This is the one step where Firebase and Google Cloud billing are
+   literally the same account — it'll ask you to link a billing account
+   (a card on file), same as any GCP project. Nothing else in this setup
+   needs the separate [Google Cloud Console](https://console.cloud.google.com/) —
+   everything else here is fully covered by Firebase Console + CLI.
 
 ## 3. Configure the app
 
