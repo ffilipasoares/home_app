@@ -59,9 +59,16 @@ export type Transaction = {
   id: string;
   date: string; // YYYY-MM-DD
   month: string; // YYYY-MM — the budget month, editable independent of date (see updateTransactionMonth)
-  /** Signed: negative = money out, positive = money in. */
+  /** Signed: negative = money out, positive = money in, in `currency`. */
   amount: number;
   currency: string;
+  /**
+   * `amount` converted to the home currency (EUR) — what dashboard totals
+   * actually sum (see functions/dashboard.py). Absent for anything already
+   * in EUR (no conversion needed); only ever set for a genuinely foreign-
+   * currency transaction, written by whatever created it.
+   */
+  amountHome?: number;
   merchantRaw: string;
   merchantNormalized: string;
   category: string | null;
@@ -71,6 +78,20 @@ export type Transaction = {
   accountId?: string;
   createdAt: number;
   updatedAt: number;
+};
+
+/**
+ * A linked bank connection (users/{uid}/accounts/{accountId}) — one doc
+ * per currency pocket/account the aggregator returns under a single
+ * consent (e.g. a Revolut login with EUR and GBP pockets is two docs, one
+ * consent). Unused until Phase 2's bank-sync step actually creates these.
+ */
+export type AccountLink = {
+  provider: string;
+  displayName: string;
+  currency: string;
+  lastSyncCursor: string | null;
+  consentExpiresAt: number | null;
 };
 
 export type CategoryRule = {

@@ -46,7 +46,14 @@ function TransactionRow({
           )}
         </div>
       </div>
-      <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>{formatCurrency(tx.amount)}</div>
+      <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>
+        {formatCurrency(tx.amount, tx.currency)}
+        {tx.amountHome !== undefined && tx.currency !== "EUR" && (
+          <div style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)" }}>
+            → {formatCurrency(tx.amountHome)}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 8, flex: "1 1 100%", marginTop: 4, flexWrap: "wrap" }}>
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="" disabled>

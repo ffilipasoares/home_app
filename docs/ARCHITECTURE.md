@@ -1,8 +1,11 @@
 # Architecture Design — Home Finance Agent
 
-Status: **Phase 1 built** — an ADK agent categorizes on import (manual CSV
-input still). Backend (`functions/`) is Python; PWA (`app/`) is
-TypeScript. Last updated 2026-09-13.
+Status: **Phase 1 built; Phase 2 step 1 of 4 built** — categorization is
+automatic on import (manual CSV input still); the data model and currency
+merge (`amountHome`/`fx.py`) are in place, but bank sync itself (the
+Revolut connection and daily pull) isn't built yet — see §11. Backend
+(`functions/`) is Python; PWA (`app/`) is TypeScript. Last updated
+2026-09-13.
 
 ## 1. Goal & scope
 
@@ -323,10 +326,14 @@ users/{uid}/monthlyIncome/{YYYY-MM}
   fixedIncomes: [ { id, label, amount }, ... ]     -- e.g. a partner's salary that never lands here, per month
 
 users/{uid}/accounts/{accountId}
-  provider, consentExpiresAt, lastSyncCursor, bankName
+  provider, displayName, currency, lastSyncCursor, consentExpiresAt
+  -- one doc per currency pocket/account a linked aggregator connection
+  -- returns (a Revolut login with EUR + GBP pockets under one consent is
+  -- two docs). Defined now (Phase 2 step 1); nothing populates it until
+  -- the bank-sync steps land.
 
 users/{uid}/transactions/{externalTxId}
-  date, amount, currency, merchantRaw, merchantNormalized,
+  date, amount, currency, amountHome?, merchantRaw, merchantNormalized,
   category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import",
   confidence, month: "YYYY-MM" (the budget month — independently editable from date, see §8), accountId
 
@@ -347,6 +354,18 @@ salary" would let a value you update today silently rewrite what every
 past month's dashboard shows the next time it happens to recompute. Rent
 (`fixedExpenses`) stays global for now since it's assumed stable; revisit
 the same way if that stops being true.
+
+**`amountHome`** exists for merging a multi-currency account (a Revolut
+login holding both EUR and GBP) into one figure: `functions/dashboard.py`
+sums `amountHome`, not `amount`, for every total. A same-currency
+transaction needs no conversion at all — `amountHome` is only ever
+persisted for a genuinely foreign-currency one (converted via
+`functions/fx.py`, the free keyless [Frankfurter API](https://frankfurter.dev/),
+ECB daily reference rates), written by whatever created that transaction.
+One missing on a foreign-currency transaction is treated the same as
+`needsReview` — excluded from totals rather than silently mixed in
+unconverted — never silently defaulted to zero or treated as already
+converted.
 
 Firestore security rules: every path above scoped to
 `request.auth.uid == uid` **and** the one allow-listed account email —
@@ -427,7 +446,7 @@ tiers:
 | Firestore (reads/writes/storage for one user) | $0 (far under the daily free quota) |
 | Firebase Hosting + Auth | $0 (free tier covers a personal PWA) |
 | Gemini 3.5 Flash-Lite (tens–hundreds of tx/month, mostly cache hits after month 1) | Cents/month |
-| Open banking aggregator | $0–~€3/mo depending on provider tier chosen |
+| Open banking aggregator | $0 — Enable Banking's free "Restricted Production on your own accounts" tier covers a single personal user connecting their own account; paid tiers only apply once an app serves other people |
 | Secret Manager | $0 (a handful of secrets, free tier) |
 
 Realistic total: **under $1–2/month**, likely $0 most months.
@@ -446,26 +465,67 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    credentials are in play. The backend (`functions/`) is Python; the
    PWA (`app/`) stays TypeScript, since that's what actually runs in
    Safari — see §5's note on the language switch.
-3. **Phase 2 — open banking sync.** Add the aggregator consent flow, the
-   daily Cloud Scheduler → Cloud Run Job trigger, and cursor-based
-   incremental fetch. This is the step gated on confirming your bank's
-   coverage with the chosen provider.
+3. **Phase 2 — open banking sync.** Bank confirmed: **Revolut**, one
+   login holding both a EUR joint account and a GBP personal account as
+   separate currency pockets — plus an individual account that stays
+   excluded (PSD2 consent lets the account holder pick exactly which
+   accounts to share, on Revolut's own consent screen, not something this
+   app or the aggregator controls). Provider: **Enable Banking**
+   (self-serve signup; Revolut is a supported institution there), free at
+   this volume — see §10. Broken into steps, only the first of which is
+   built:
+   1. **Data model + currency merge — done.** `amountHome`/`HOME_CURRENCY`
+      (§6), `functions/fx.py` (Frankfurter conversion), `dashboard.py`
+      summing `amountHome`. No external dependency — buildable and
+      testable before any bank credentials exist, so the riskiest,
+      least-verifiable part (a real aggregator connection) isn't on the
+      critical path to a working currency merge.
+   2. **You sign up with Enable Banking** (their sandbox, no card) — not
+      something this session can do; needed before step 3 can be built
+      against their real API rather than a guess.
+   3. **Connect flow + daily sync** — a "Connect Revolut" button
+      (Settings), the consent redirect, and a scheduled Cloud Function
+      (`@scheduler_fn.on_schedule` — not the Cloud Scheduler → Cloud Run
+      Job originally planned in §3.1's era; a scheduled Cloud Function
+      stays in the same Python deployment this project already has)
+      pulling transactions since each account's cursor into the existing
+      `transactions` collection, so they flow through the categorization
+      agent and dashboard recompute unchanged.
+   4. **Consent-expiry handling** — a "reconnect Revolut" banner before
+      the ~90-day PSD2 consent lapses.
 4. **Phase 3 (stretch) — conversational "ask your finances".** A chat
    affordance in the dashboard ("how much on dining out in June vs May?"),
-   backed by the same ADK tools but this time genuinely worth deploying to
-   **Vertex AI Agent Engine** for its session/memory management.
+   read-only, grounded in the same Firestore data. A prior attempt at this
+   was built, then reverted at the user's request to keep Phase 2 next in
+   sequence — the design (a second ADK agent, no Vertex AI Agent Engine
+   needed since a stateless-per-call agent with client-held history covers
+   it) is sound and worth revisiting the same way if picked back up.
 
-## 12. Open questions to confirm before Phase 2
+## 12. Open questions
 
-- Which bank(s) and which aggregator (Enable Banking vs. any existing
-  GoCardless access) — needs a coverage check for your specific bank.
-- Is one "Salary" category (matching whichever partner's income actually
-  lands in this account) still enough once bank sync is live, or does the
-  agent need to distinguish multiple real income transactions by payer?
+Settled:
+- ~~Which bank(s) and which aggregator~~ — **Revolut, via Enable Banking**
+  (§11 Phase 2). Confirmed Revolut is a supported institution there;
+  which of Enable Banking's institution-picker entries actually covers
+  both currency pockets under one consent is the first thing to check
+  once signed up (§11 step 2), not assumed here.
+- ~~Is one "Salary" category still enough~~ — moot: the joint account
+  only ever receives one partner's salary as a real transaction; the
+  other's is tracked via `monthlyIncome.fixedIncomes` (§6), not a second
+  income-category transaction.
 - `needs_review` transactions are excluded from `totalsByCategory` /
-  `totalExpenses` until categorized (settled by the Phase 0 implementation)
-  — revisit only if that undercounts spend in a way that's actually
-  confusing in practice.
+  `totalExpenses` until categorized (settled by the Phase 0
+  implementation) — revisit only if that undercounts spend in a way
+  that's actually confusing in practice.
+
+Still open, for Phase 2 steps 2-4:
+- Enable Banking's exact consent/session API shape (endpoint names, how
+  a session's resulting account list is retrieved) — deliberately not
+  guessed at in this doc; read once there's a real sandbox account to
+  build against.
+- Whether the individual account ever needs to be visible to this app at
+  all in the future, even read-only — current design assumes never (it's
+  excluded at Revolut's own consent screen, on purpose).
 
 ---
 

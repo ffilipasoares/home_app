@@ -5,6 +5,14 @@ August's dashboard says), plus the global fixed-expenses/savings-goal
 settings. Always a full re-sum rather than an incremental +/- — at one
 household's transaction volume this is cheap, and it means the result is
 correct even if a write is retried or edited repeatedly (see main.py).
+
+Every total here is in HOME_CURRENCY (fx.py) — a same-currency
+transaction needs no conversion, a foreign-currency one must already
+carry its own persisted `amountHome` (see schema.py's Transaction) or
+it's excluded pending review. This is how a multi-currency account (e.g.
+a Revolut login's EUR and GBP pockets, once Phase 2's bank sync links it)
+merges into one figure without this function needing to know or care
+which accounts are foreign.
 """
 
 import time
@@ -12,6 +20,7 @@ import time
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from fx import HOME_CURRENCY
 from schema import CategoryDef, DashboardDoc, MonthlyIncome, UserSettings
 
 
@@ -48,15 +57,31 @@ def recompute_month(uid: str, month: str) -> None:
         if tx.get("needsReview") or not tx.get("category"):
             needs_review_count += 1
             continue
+
+        # Every total below is in HOME_CURRENCY — this is the one place
+        # that matters for merging a multi-currency account. A same-
+        # currency transaction needs no conversion at all (identity, no
+        # fx.py call); a foreign-currency one must already carry a
+        # persisted amountHome (written by whatever created it — the
+        # daily bank-sync job, once built) or it's treated as needing
+        # review rather than mixing an unconverted figure into the total.
+        amount_home = tx.get("amountHome")
+        if amount_home is None:
+            if tx.get("currency", HOME_CURRENCY) == HOME_CURRENCY:
+                amount_home = tx["amount"]
+            else:
+                needs_review_count += 1
+                continue
+
         definition = category_by_id.get(tx["category"])
         special = definition.get("special") if definition else None
         if special == "income":
-            auto_detected_salary += tx["amount"]
+            auto_detected_salary += amount_home
             continue
         if special == "savings":
-            savings_actual += abs(tx["amount"])
+            savings_actual += abs(amount_home)
             continue
-        spend = abs(min(0.0, tx["amount"]))  # only money out counts as an expense
+        spend = abs(min(0.0, amount_home))  # only money out counts as an expense
         if spend == 0:
             continue
         totals_by_category[tx["category"]] = totals_by_category.get(tx["category"], 0.0) + spend
