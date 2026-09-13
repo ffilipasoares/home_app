@@ -5,7 +5,6 @@ import { Dashboard } from "./pages/Dashboard";
 import { Transactions } from "./pages/Transactions";
 import { Import } from "./pages/Import";
 import { Settings } from "./pages/Settings";
-import { Ask } from "./pages/Ask";
 
 export function App() {
   return (
@@ -19,7 +18,6 @@ export function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/import" element={<Import />} />
-            <Route path="/ask" element={<Ask />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </AuthGate>
