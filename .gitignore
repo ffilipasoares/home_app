@@ -1,6 +1,10 @@
 node_modules/
 dist/
 functions/lib/
+functions/venv/
+functions/__pycache__/
+**/__pycache__/
+*.pyc
 .firebase/
 .firebaserc
 *.local

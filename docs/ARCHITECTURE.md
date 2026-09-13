@@ -1,7 +1,8 @@
 # Architecture Design — Home Finance Agent
 
 Status: **Phase 1 built** — an ADK agent categorizes on import (manual CSV
-input still). Last updated 2026-09-13.
+input still). Backend (`functions/`) is Python; PWA (`app/`) is
+TypeScript. Last updated 2026-09-13.
 
 ## 1. Goal & scope
 
@@ -236,44 +237,56 @@ double-counts — a write is always an upsert, never an append.
 
 ## 5. Categorization agent
 
-Built with **`@google/adk`** (the JS/TS port of Google's Agent Development
-Kit, `npm i @google/adk`) — a real `LlmAgent`/tool/`Runner` agent, not a
-bare `generateContent` call with a JSON schema. This corrects an earlier
-version of this section, which argued a single structured-output call
-made ADK's abstraction "ceremony, not structure" for this task — that
-argument substituted engineering judgment for an explicit product
-requirement (build an agent) instead of surfacing the tradeoff and
-asking. The corrected design (`functions/src/categorize.ts`):
+Built with **`google-adk`** (`pip install google-adk`) — Python, not
+TypeScript. The backend (`functions/`) was rewritten from Node/TypeScript
+to Python for this reason specifically: Python is where ADK actually
+originates and is the most mature, best-documented implementation — the
+JS/TS port used in the first version of this agent is a newer port of it.
+That switch was an explicit requirement, not a judgment call this project
+made on its own; see the note in §3.1 on the general principle this keeps
+running into (an explicit requirement isn't a tradeoff to make
+unilaterally, even a well-reasoned one — it's surfaced and asked about).
 
-- **`transaction_categorizer`** (`Agent`, aliased from ADK's `LlmAgent`) —
-  given the merchant, amount, and the user's own category list, decides
-  for itself how to reach an answer rather than following one hardcoded
-  path.
-- **`list_recently_categorized_merchants`** tool — the agent may call this
-  if the merchant doesn't obviously match a category on its own, to see
-  how similar merchants were categorized before (e.g. "UBER EATS" has no
-  exact-match rule yet, but "UBER" → Transport does — a similarity
+A real `LlmAgent`/tool/`Runner` agent, not a bare `generate_content` call
+with a JSON schema (`functions/categorize.py`):
+
+- **`transaction_categorizer`** (`LlmAgent`) — given the merchant, amount,
+  and the user's own category list, decides for itself how to reach an
+  answer rather than following one hardcoded path.
+- **`list_recently_categorized_merchants`** tool — a plain Python function
+  passed directly in `tools=[...]` (ADK auto-wraps it; no explicit
+  `FunctionTool()` needed for a simple case like this). The agent may call
+  this if the merchant doesn't obviously match a category on its own, to
+  see how similar merchants were categorized before (e.g. "UBER EATS" has
+  no exact-match rule yet, but "UBER" → Transport does — a similarity
   judgment a rigid lookup can't make, and the reason this is a genuine
   improvement over the original design, not just a reframing of it).
 - **`record_categorization`** tool — the agent commits its final
-  `{category, confidence}` through a tool call (validated against the
-  real category list), rather than free text or a response schema.
-- Run via `InMemoryRunner` (ephemeral session — each categorization is one
-  independent, stateless decision; nothing here needs a durable session).
+  `{category, confidence}` through a tool call, rather than free text or a
+  response schema. Validates the category id itself and returns an error
+  message back to the agent if it's invalid, so a hallucinated id gets a
+  chance to be corrected within the same run rather than silently failing
+  the whole categorization.
+- Run via `InMemoryRunner` with a fresh session per call (each
+  categorization is one independent, stateless decision; nothing here
+  needs a durable session) — driven with `asyncio.run()` from the
+  synchronous Firestore trigger handler in `main.py`, since Cloud
+  Functions' Python Functions Framework dispatches triggers synchronously
+  and doesn't await `async def` handlers itself.
 
 An **exact-match cache hit** (`categoryRules/{merchantNormalized}`) is
 still checked *before* the agent is ever invoked, in plain deterministic
-code (`index.ts` → `autoCategorize`) — that isn't a shortcut around
+code (`main.py` → `_auto_categorize`) — that isn't a shortcut around
 "real agent work," it's recognizing that an exact string match has
 nothing to reason about. What reaches the agent is specifically the part
 that requires judgment: a merchant with no exact match.
 
 | Step | Where |
 |---|---|
-| Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `index.ts` → `autoCategorize`, `categoryRules.ts` → `findExactCategoryRule` |
-| Agent run: optionally consult recent rules, then commit `{category, confidence}` | `categorize.ts` → `categorizeTransaction` |
-| Cache write — only on a confident fresh guess, so an unconfirmed suggestion never becomes "ground truth" | `index.ts` → `autoCategorize` |
-| Dashboard recompute — unchanged from Phase 0, just called again after a category lands | `dashboard.ts` → `recomputeMonth` |
+| Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `main.py` → `_auto_categorize`, `category_rules.py` → `find_exact_category_rule` |
+| Agent run: optionally consult recent rules, then commit `{category, confidence}` | `categorize.py` → `categorize_transaction` |
+| Cache write — only on a confident fresh guess, so an unconfirmed suggestion never becomes "ground truth" | `main.py` → `_auto_categorize` |
+| Dashboard recompute — unchanged from Phase 0, just called again after a category lands | `dashboard.py` → `recompute_month` |
 
 This is also where ADK's structure was worth having in practice, not just
 in principle: `list_recently_categorized_merchants` is a tool the agent
@@ -427,9 +440,12 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    hand. Proves the data model and UI end-to-end with zero bank-integration
    risk.
 2. **Phase 1 — an ADK categorization agent, still on manual CSV input.**
-   `@google/adk` `LlmAgent` + tools (§5), triggered from the existing
-   `onTransactionWrite` Cloud Function. Validates categorization quality
-   and the learned-rule cache before any bank credentials are in play.
+   `google-adk` (Python) `LlmAgent` + tools (§5), triggered from the
+   existing `on_transaction_write` Cloud Function. Validates
+   categorization quality and the learned-rule cache before any bank
+   credentials are in play. The backend (`functions/`) is Python; the
+   PWA (`app/`) stays TypeScript, since that's what actually runs in
+   Safari — see §5's note on the language switch.
 3. **Phase 2 — open banking sync.** Add the aggregator consent flow, the
    daily Cloud Scheduler → Cloud Run Job trigger, and cursor-based
    incremental fetch. This is the step gated on confirming your bank's

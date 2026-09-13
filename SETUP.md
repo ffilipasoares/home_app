@@ -7,8 +7,12 @@ end-to-end. No bank integration yet — that's Phase 2 (see
 
 ## 1. Prerequisites
 
-- Node.js 20+ (this repo was built/tested on Node 22).
-- The Firebase CLI: `npm install -g firebase-tools`, then `firebase login`.
+- Node.js 20+ (this repo was built/tested on Node 22) — for `app/`, the PWA.
+- Python 3.11+ — for `functions/`, the backend (Cloud Functions + the
+  categorization agent).
+- The Firebase CLI: `npm install -g firebase-tools`, then `firebase login`
+  (keep it reasonably current — Python Cloud Functions support needs a
+  recent-ish version).
 
 ## 2. Create the Firebase project
 
@@ -83,8 +87,18 @@ and pick it interactively instead).
 
 ```bash
 cd app && npm install && cd ..
-cd functions && npm install && cd ..
+
+cd functions
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cd ..
 ```
+
+Keep that virtual environment activated (or re-activate it) for any local
+Python work in `functions/` — the Firebase CLI's Python function support
+expects `requirements.txt` in `functions/` regardless, and will manage its
+own build environment at deploy time.
 
 ## 7. Deploy
 
@@ -145,7 +159,7 @@ This runs against your **real** Firestore/Auth (no emulator wired up yet)
 — fine for a single-user personal project, just know that anything you do
 in dev writes real data. `firebase emulators:start` covers Auth + Firestore
 + Functions fully offline if you'd rather develop against a sandbox (the
-Vertex AI call in `functions/src/categorize.ts` won't work in the emulator
+Vertex AI call in `functions/categorize.py` won't work in the emulator
 without its own credentials setup, though — cache-hit categorization and
 everything else will).
 
