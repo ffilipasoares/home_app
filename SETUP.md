@@ -66,9 +66,11 @@ cp .env.example .env.local
 Fill in `.env.local` with the `firebaseConfig` values from step 2.4.
 `VITE_ALLOWED_EMAIL` is already set to `filipaferreirasoares12@gmail.com` —
 leave it if that's the Google account you'll sign in with, otherwise change
-it **and** update the matching email literal in `firestore.rules` at the
-repo root (both must match — the rules file is the one that actually
-enforces it).
+it, **and** update the matching email literal in `firestore.rules` at the
+repo root, **and** `ALLOWED_EMAIL` if you set `functions/.env` from
+`functions/.env.example` (all three enforce the same restriction
+independently — `ask_question`, the one HTTPS callable, isn't covered by
+Firestore rules, hence its own copy of the check).
 
 ## 5. Point the Firebase CLI at your project
 
@@ -148,6 +150,11 @@ home screen like an installed app.
    month it should count toward (e.g. a salary paid the 25th of the prior
    month) can be moved via the "Counts toward…" disclosure on its row.
 5. **Dashboard** → updates within a couple of seconds of each save.
+6. **Ask** → try one of the suggested questions, or your own. Read-only —
+   it can't change anything, it just answers from your data. The
+   conversation resets if you leave the screen (see
+   [docs/ARCHITECTURE.md §13](docs/ARCHITECTURE.md#13-conversational-agent-ask)
+   for why, and what a persisted version would need).
 
 ## Local development
 
@@ -179,6 +186,18 @@ GOOGLE_CLOUD_PROJECT=your-firebase-project-id python3 scripts/test_categorize.py
 
 Edit the sample categories/rules/merchants at the top of the script to
 match your real Settings categories and actual statement merchant strings.
+
+### Testing the "ask your finances" agent in isolation
+
+`scripts/test_insights.py` calls the finance_assistant agent directly
+against your real Firestore data — no deployed callable, no chat UI:
+
+```bash
+gcloud auth application-default login   # once, if you haven't already
+GOOGLE_CLOUD_PROJECT=your-firebase-project-id python3 scripts/test_insights.py <your-uid> "How was this month?"
+```
+
+Find `<your-uid>` in Firebase Console → Authentication → Users.
 
 ## Cost
 

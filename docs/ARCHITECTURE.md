@@ -1,8 +1,10 @@
 # Architecture Design — Home Finance Agent
 
-Status: **Phase 1 built** — an ADK agent categorizes on import (manual CSV
-input still). Backend (`functions/`) is Python; PWA (`app/`) is
-TypeScript. Last updated 2026-09-13.
+Status: **Phase 1 + Phase 3 built** (Phase 2 skipped for now, at the
+user's request — see §11). Categorization is automatic on import (manual
+CSV input still); a separate "Ask" agent answers free-form questions,
+ephemeral per chat for this version. Backend (`functions/`) is Python;
+PWA (`app/`) is TypeScript. Last updated 2026-09-13.
 
 ## 1. Goal & scope
 
@@ -446,14 +448,19 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    credentials are in play. The backend (`functions/`) is Python; the
    PWA (`app/`) stays TypeScript, since that's what actually runs in
    Safari — see §5's note on the language switch.
-3. **Phase 2 — open banking sync.** Add the aggregator consent flow, the
-   daily Cloud Scheduler → Cloud Run Job trigger, and cursor-based
-   incremental fetch. This is the step gated on confirming your bank's
+3. **Phase 2 — open banking sync.** Not started. Add the aggregator
+   consent flow, the daily Cloud Scheduler → Cloud Run Job trigger, and
+   cursor-based incremental fetch. Gated on confirming your bank's
    coverage with the chosen provider.
-4. **Phase 3 (stretch) — conversational "ask your finances".** A chat
-   affordance in the dashboard ("how much on dining out in June vs May?"),
-   backed by the same ADK tools but this time genuinely worth deploying to
-   **Vertex AI Agent Engine** for its session/memory management.
+4. **Phase 3 — conversational "ask your finances."** Built ahead of
+   Phase 2, by request — see §13. A second, separate ADK agent
+   (`finance_assistant`) answering free-form questions from a new **Ask**
+   screen, read-only, no persisted session (ephemeral per chat for this
+   version — persisted chat history is planned for a later version, see
+   §13's open note). Turned out not to need Vertex AI Agent Engine after
+   all: the client holding its own conversation state and resending it
+   each call keeps the backend stateless, the same "no durable session
+   needed" reasoning §3.1 used to keep the categorizer off Agent Engine.
 
 ## 12. Open questions to confirm before Phase 2
 
@@ -466,6 +473,80 @@ Realistic total: **under $1–2/month**, likely $0 most months.
   `totalExpenses` until categorized (settled by the Phase 0 implementation)
   — revisit only if that undercounts spend in a way that's actually
   confusing in practice.
+
+## 13. Conversational agent ("Ask")
+
+A second, separate ADK agent from the categorizer (`functions/insights.py`)
+— different job, different tools, same framework. Answers free-form
+questions about the user's own finances from a new **Ask** screen in the
+PWA (`app/src/pages/Ask.tsx`).
+
+**Read-only, deliberately.** None of its tools write anything — the worst
+a strange question can do is read data it didn't need to. It has no path
+to a Firestore write, so there's no "the agent misunderstood and changed
+something" failure mode to defend against.
+
+**Tools** (each a thin, `uid`-scoped Firestore read wrapper — `uid` is
+bound via closure, never accepted as a tool argument, so there's no path,
+prompt injection included, by which this agent could read another user's
+data):
+
+| Tool | Purpose |
+|---|---|
+| `get_dashboard(month)` | The same numbers the Dashboard page shows for a `YYYY-MM` month |
+| `list_transactions(month, category="")` | Categorized transactions for a month, for "what did I spend on X" |
+| `list_available_months()` | Which months actually have data, so the agent doesn't assume |
+| `get_settings()` | Categories, fixed expenses, savings goal — for explaining *why* a number is what it is |
+
+The agent resolves relative references ("last month," "in July") itself —
+today's date is injected into its instruction, so it computes the right
+`YYYY-MM` before calling a tool, rather than that logic living in Python.
+
+**Model**: `gemini-2.5-flash`, not the categorizer's Flash-Lite — this is
+open-ended reasoning (interpreting a question, comparing months, deciding
+what's worth mentioning) rather than bounded classification, and at "a
+handful of questions a month" volume the cost difference doesn't matter.
+
+**Answer shape differs from the categorizer's on purpose**: the
+categorizer commits its answer through a tool call
+(`record_categorization`) because it needs a validated, structured
+result. This agent's job is to produce prose a person reads, so its
+answer is just its final plain-text response — pulled from the run's
+last `is_final_response()` event rather than a committed tool call.
+
+**Conversation handling — no server-side session.** The PWA keeps the
+chat transcript in local component state and resends the last few turns
+as plain context with each question (`app/src/lib/insights.ts` caps it at
+8, `functions/insights.py` caps it again defensively). The backend stays
+stateless per call — a fresh `InMemoryRunner` session every time, same
+choice `categorize.py` made and for the same reason: nothing here needs
+to survive between calls except what the client already holds. Reloading
+the page clears the chat.
+
+> **Open note, explicitly to revisit, not an oversight:** the user asked
+> for this to stay ephemeral *for this version* but wants persisted chat
+> history (survives reloads/devices) in a later one. That's a genuine
+> scope step up — a `chats/{sessionId}` Firestore collection, loading
+> history on open, deciding how much history to keep — not a small
+> follow-up, so it's called out here rather than assumed.
+
+**Trigger**: an HTTPS **callable** Cloud Function (`ask_question`, in
+`main.py`), not a Firestore trigger — this is the first request/response
+endpoint in the project; everything before this fired off a Firestore
+write. Firestore security rules don't apply to callables, so the same
+single-allow-listed-email restriction they enforce is repeated in code
+(`ALLOWED_EMAIL`, checked against `req.auth.token["email"]`) — otherwise
+any authenticated Google account, not just yours, could call this
+endpoint directly.
+
+**Testing**: `scripts/test_insights.py` calls `answer_question` directly
+against your real Firestore data (needs `gcloud auth application-default
+login` and your uid) — no deployed callable, no chat UI, the fastest way
+to see how it actually answers before trusting it in the app. Verified in
+this session the same way as the categorizer: real agent construction,
+tool registration, and run loop, up to the point a real network call to
+Vertex AI would happen — that call itself needs your own credentials to
+confirm.
 
 ---
 

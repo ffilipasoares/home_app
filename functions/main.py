@@ -1,7 +1,8 @@
 """Cloud Functions entry point. Firebase's Python Functions Framework
 discovers the functions exported below.
 
-Three responsibilities, split across two triggers, all idempotent:
+Two Firestore triggers plus one callable, four responsibilities total, all
+idempotent:
   1. Learn a merchant -> category rule when a human confirms one (a
      manual-edit).
   2. Auto-categorize a freshly-imported transaction that has no category
@@ -11,6 +12,9 @@ Three responsibilities, split across two triggers, all idempotent:
      always terminates in exactly two invocations, never a loop.
   3. Recompute that month's dashboard doc from scratch on every
      transaction write or income edit (see dashboard.py).
+  4. Answer a free-form question about the user's finances (ask_question,
+     see insights.py) — the only callable here, invoked directly from the
+     app's Ask screen rather than fired by a Firestore write.
 
 A CSV import writing 100 rows fires (1) 100 times for the same month;
 each run just re-derives the same totals, so that's wasted work, not
@@ -18,19 +22,27 @@ wrong output — fine at this project's transaction volume.
 """
 
 import asyncio
+import os
 import time
 
 import firebase_admin
 from firebase_admin import firestore
-from firebase_functions import firestore_fn
+from firebase_functions import firestore_fn, https_fn
 from google.cloud.firestore_v1 import Increment
 
 from categorize import CONFIDENCE_THRESHOLD, categorize_transaction
 from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
+from insights import answer_question
 from schema import CategoryDef, Transaction
 
 firebase_admin.initialize_app()
+
+# Same single-allow-listed-account model as firestore.rules and
+# app/.env.example's VITE_ALLOWED_EMAIL — kept as an env var here (see
+# functions/.env.example) rather than only hardcoded, but defaults to the
+# same address so a fresh checkout is secure by default without extra setup.
+ALLOWED_EMAIL = os.environ.get("ALLOWED_EMAIL", "filipaferreirasoares12@gmail.com")
 
 
 async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> None:
@@ -137,3 +149,29 @@ def on_monthly_income_write(event: firestore_fn.Event[firestore_fn.Change]) -> N
     like on_transaction_write needs is necessary here.
     """
     recompute_month(event.params["uid"], event.params["month"])
+
+
+@https_fn.on_call()
+def ask_question(req: https_fn.CallableRequest) -> dict:
+    """Callable from the app's Ask screen (see app/src/lib/insights.ts).
+    Firestore security rules don't apply to callable functions, so the
+    same allow-listed-email check they enforce is repeated here —
+    otherwise any authenticated Google account could call this endpoint
+    directly, bypassing the app entirely.
+    """
+    if req.auth is None or req.auth.token.get("email") != ALLOWED_EMAIL:
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+            message="This app is configured for a single account.",
+        )
+
+    question = (req.data or {}).get("question")
+    if not question or not isinstance(question, str):
+        raise https_fn.HttpsError(
+            code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            message="A non-empty 'question' string is required.",
+        )
+    history = (req.data or {}).get("history") or []
+
+    answer = asyncio.run(answer_question(req.auth.uid, question, history))
+    return {"answer": answer}

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
 
 // All values come from app/.env.local (see app/.env.example + SETUP.md).
 // None of this is a secret in the traditional sense — a Firebase web config
@@ -19,6 +20,9 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+// Default region — matches the region the ask_question callable deploys
+// to unless you've configured a custom one.
+export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
 
 /** The only email allowed to use this app — set to your own address. */
