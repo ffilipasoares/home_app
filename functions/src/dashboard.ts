@@ -4,14 +4,17 @@ import type { CategoryDef, DashboardDoc, Transaction, UserSettings } from "./typ
 const DEFAULT_SETTINGS: UserSettings = {
   defaultSalary: 0,
   savingsGoal: { type: "fixed", value: 0 },
+  fixedExpenses: [],
+  fixedIncomes: [],
 };
 
 /**
  * Recomputes users/{uid}/dashboards/{month} from scratch by summing that
- * month's transactions. Always a full re-sum rather than an incremental
- * +/- — at one user's transaction volume this is cheap, and it means the
- * result is correct even if a write is retried or a category is edited
- * repeatedly (see onTransactionWrite in index.ts).
+ * month's transactions plus the fixed items from Settings. Always a full
+ * re-sum rather than an incremental +/- — at one household's transaction
+ * volume this is cheap, and it means the result is correct even if a write
+ * is retried or a category is edited repeatedly (see onTransactionWrite in
+ * index.ts).
  */
 export async function recomputeMonth(uid: string, month: string): Promise<void> {
   const db = getFirestore();
@@ -25,12 +28,12 @@ export async function recomputeMonth(uid: string, month: string): Promise<void> 
 
   const categories: CategoryDef[] = (categoriesSnap.data()?.categories as CategoryDef[] | undefined) ?? [];
   const categoryById = new Map(categories.map((c) => [c.id, c]));
-  const settings: UserSettings = (settingsSnap.data() as UserSettings | undefined) ?? DEFAULT_SETTINGS;
+  const settingsData = settingsSnap.data() as Partial<UserSettings> | undefined;
+  const settings: UserSettings = { ...DEFAULT_SETTINGS, ...settingsData };
 
   let salary = 0;
   let savingsActual = 0;
-  let neededTotal = 0;
-  let discretionaryTotal = 0;
+  let totalExpenses = 0;
   let needsReviewCount = 0;
   const totalsByCategory: Record<string, number> = {};
 
@@ -52,24 +55,27 @@ export async function recomputeMonth(uid: string, month: string): Promise<void> 
     const spend = Math.abs(Math.min(0, tx.amount)); // only money out counts as an expense
     if (spend === 0) continue;
     totalsByCategory[tx.category] = (totalsByCategory[tx.category] ?? 0) + spend;
-    const needed = tx.needed ?? def?.needed ?? false;
-    if (needed) neededTotal += spend;
-    else discretionaryTotal += spend;
+    totalExpenses += spend;
   }
 
   if (salary === 0) salary = settings.defaultSalary;
 
-  const savingsGoalTarget =
-    settings.savingsGoal.type === "fixed" ? settings.savingsGoal.value : (settings.savingsGoal.value / 100) * salary;
+  const fixedExpensesTotal = settings.fixedExpenses.reduce((sum, item) => sum + item.amount, 0);
+  const fixedIncomesTotal = settings.fixedIncomes.reduce((sum, item) => sum + item.amount, 0);
+  const totalIncome = salary + fixedIncomesTotal;
 
-  const moneyLeft = salary - neededTotal - discretionaryTotal - savingsGoalTarget;
+  const savingsGoalTarget =
+    settings.savingsGoal.type === "fixed" ? settings.savingsGoal.value : (settings.savingsGoal.value / 100) * totalIncome;
+
+  const moneyLeft = totalIncome - totalExpenses - fixedExpensesTotal - savingsGoalTarget;
 
   const dashboard: DashboardDoc = {
     month,
     salary,
     totalsByCategory,
-    neededTotal,
-    discretionaryTotal,
+    totalExpenses,
+    fixedExpensesTotal,
+    fixedIncomesTotal,
     savingsGoalTarget,
     savingsActual,
     moneyLeft,

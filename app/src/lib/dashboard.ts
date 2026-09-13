@@ -12,14 +12,18 @@ export function subscribeDashboard(
   month: string,
   cb: (dashboard: DashboardDoc | null) => void,
 ) {
-  return onSnapshot(doc(dashboardsCol(uid), month), (snap) => {
-    cb((snap.data() as DashboardDoc | undefined) ?? null);
-  });
+  return onSnapshot(
+    doc(dashboardsCol(uid), month),
+    (snap) => cb((snap.data() as DashboardDoc | undefined) ?? null),
+    (err) => console.error("subscribeDashboard failed", err),
+  );
 }
 
 export function subscribeAvailableMonths(uid: string, cb: (months: string[]) => void) {
   const q = query(dashboardsCol(uid), orderBy("month", "desc"));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => d.id));
-  });
+  return onSnapshot(
+    q,
+    (snap) => cb(snap.docs.map((d) => d.id)),
+    (err) => console.error("subscribeAvailableMonths failed", err),
+  );
 }

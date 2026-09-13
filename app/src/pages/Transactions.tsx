@@ -15,11 +15,10 @@ function TransactionRow({
 }: {
   tx: Transaction;
   categories: CategoryDef[];
-  onSave: (category: string, needed: boolean) => void;
+  onSave: (category: string) => void;
 }) {
   const [category, setCategory] = useState(tx.category ?? "");
-  const [needed, setNeeded] = useState(tx.needed ?? true);
-  const dirty = category !== (tx.category ?? "") || needed !== (tx.needed ?? true);
+  const dirty = category !== (tx.category ?? "");
 
   return (
     <div className="tx-row" style={{ flexWrap: "wrap" }}>
@@ -32,15 +31,7 @@ function TransactionRow({
       </div>
       <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>{formatCurrency(tx.amount)}</div>
       <div style={{ display: "flex", gap: 8, flex: "1 1 100%", marginTop: 4 }}>
-        <select
-          value={category}
-          onChange={(e) => {
-            const next = e.target.value;
-            setCategory(next);
-            const def = categories.find((c) => c.id === next);
-            if (def) setNeeded(def.needed);
-          }}
-        >
+        <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="" disabled>
             Choose category…
           </option>
@@ -50,16 +41,12 @@ function TransactionRow({
             </option>
           ))}
         </select>
-        <select value={needed ? "yes" : "no"} onChange={(e) => setNeeded(e.target.value === "yes")}>
-          <option value="yes">Needed</option>
-          <option value="no">Discretionary</option>
-        </select>
         <button
           type="button"
           className="button"
           style={{ padding: "8px 14px" }}
           disabled={!category || !dirty}
-          onClick={() => onSave(category, needed)}
+          onClick={() => onSave(category)}
         >
           Save
         </button>
@@ -95,7 +82,7 @@ export function Transactions() {
             key={tx.id}
             tx={tx}
             categories={categories}
-            onSave={(category, needed) => updateTransactionCategory(uid, tx.id, category, needed)}
+            onSave={(category) => updateTransactionCategory(uid, tx.id, category)}
           />
         ))}
       </div>

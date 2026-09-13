@@ -11,7 +11,7 @@ initializeApp();
  * Fires on every create/update/delete under users/{uid}/transactions/{txId}.
  * Two responsibilities, both idempotent:
  *  1. Learn a merchant -> category rule when a human confirms one (a
- *     manual-edit) — the Phase 2 categorization agent reads this cache
+ *     manual-edit) — the Phase 1 categorization agent reads this cache
  *     before ever calling Gemini.
  *  2. Recompute that month's dashboard doc from scratch (see dashboard.ts).
  *
@@ -30,7 +30,7 @@ export const onTransactionWrite = onDocumentWritten("users/{uid}/transactions/{t
     return;
   }
 
-  if (after?.source === "manual-edit" && after.category && after.needed !== null) {
+  if (after?.source === "manual-edit" && after.category) {
     const db = getFirestore();
     await db
       .collection("users")
@@ -41,7 +41,6 @@ export const onTransactionWrite = onDocumentWritten("users/{uid}/transactions/{t
         {
           merchantNormalized: after.merchantNormalized,
           category: after.category,
-          needed: after.needed,
           timesConfirmed: FieldValue.increment(1),
           lastUpdated: Date.now(),
         },

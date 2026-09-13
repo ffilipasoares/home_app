@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
-import { subscribeCategories } from "../lib/settings";
+import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { currentMonth } from "../lib/month";
 import { MonthPicker } from "../components/MonthPicker";
 import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
-import { NeededSplitBar } from "../components/NeededSplitBar";
 import { SavingsMeter } from "../components/SavingsMeter";
-import type { CategoryDef, DashboardDoc } from "../types";
+import { formatCurrency } from "../lib/format";
+import type { CategoryDef, DashboardDoc, UserSettings } from "../types";
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -18,10 +18,12 @@ export function Dashboard() {
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [dashboard, setDashboard] = useState<DashboardDoc | null>(null);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
 
   useEffect(() => subscribeAvailableMonths(uid, setAvailableMonths), [uid]);
   useEffect(() => subscribeDashboard(uid, month, setDashboard), [uid, month]);
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
+  useEffect(() => subscribeUserSettings(uid, setSettings), [uid]);
 
   const categoryLabel = (id: string) => categories.find((c) => c.id === id)?.label ?? id;
 
@@ -29,6 +31,11 @@ export function Dashboard() {
     label: categoryLabel(id),
     value,
   }));
+
+  const fixedItems = [
+    ...(settings?.fixedIncomes ?? []).map((item) => ({ ...item, amount: item.amount })),
+    ...(settings?.fixedExpenses ?? []).map((item) => ({ ...item, amount: -item.amount })),
+  ];
 
   return (
     <div className="screen">
@@ -55,13 +62,8 @@ export function Dashboard() {
       {dashboard && (
         <>
           <div className="stat-row">
-            <StatTile label="Salary this month" value={dashboard.salary} />
+            <StatTile label="Income this month" value={dashboard.salary + dashboard.fixedIncomesTotal} />
             <StatTile label="Money left" value={dashboard.moneyLeft} hero />
-          </div>
-
-          <div className="card">
-            <h2>Needed vs discretionary</h2>
-            <NeededSplitBar needed={dashboard.neededTotal} discretionary={dashboard.discretionaryTotal} />
           </div>
 
           <div className="card">
@@ -71,8 +73,28 @@ export function Dashboard() {
 
           <div className="card">
             <h2>Expenses by category</h2>
+            <p style={{ marginTop: 0, fontSize: 12, color: "var(--text-muted)" }}>
+              From imported &amp; categorized transactions only — fixed items below are added separately.
+            </p>
             <CategoryBarChart rows={categoryRows} />
           </div>
+
+          {fixedItems.length > 0 && (
+            <div className="card">
+              <h2>Fixed monthly items</h2>
+              {fixedItems.map((item) => (
+                <div key={item.id} className="tx-row">
+                  <span>{item.label}</span>
+                  <span className={`tx-amount ${item.amount >= 0 ? "positive" : "negative"}`}>
+                    {formatCurrency(item.amount)}
+                  </span>
+                </div>
+              ))}
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
+                Edit these in Settings.
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>

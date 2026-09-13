@@ -45,24 +45,20 @@ export function subscribeMonthTransactions(
   cb: (transactions: Transaction[]) => void,
 ) {
   const q = query(transactionsCol(uid), where("month", "==", month), orderBy("date", "desc"));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => d.data() as Transaction));
-  });
+  return onSnapshot(
+    q,
+    (snap) => cb(snap.docs.map((d) => d.data() as Transaction)),
+    (err) => console.error("subscribeMonthTransactions failed", err),
+  );
 }
 
 /** Manual category edit from the Transactions screen — the Cloud Function trigger picks this up to learn the merchant rule and recompute the month's dashboard. */
-export async function updateTransactionCategory(
-  uid: string,
-  txId: string,
-  category: string,
-  needed: boolean,
-): Promise<void> {
+export async function updateTransactionCategory(uid: string, txId: string, category: string): Promise<void> {
   const batch = writeBatch(db);
   batch.set(
     doc(transactionsCol(uid), txId),
     {
       category,
-      needed,
       needsReview: false,
       source: "manual-edit",
       updatedAt: Date.now(),
@@ -89,7 +85,6 @@ export async function importTransactions(uid: string, rows: ImportRow[]): Promis
         merchantRaw: row.merchantRaw,
         merchantNormalized: normalizeMerchant(row.merchantRaw),
         category: null,
-        needed: null,
         needsReview: true,
         source: "manual-import",
         createdAt: Date.now(),

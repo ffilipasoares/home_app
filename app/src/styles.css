@@ -235,31 +235,6 @@ input[type="number"] {
   flex-shrink: 0;
 }
 
-/* ---------- Stacked split bar ---------- */
-.split-bar {
-  display: flex;
-  height: 24px;
-  border-radius: 4px;
-  overflow: hidden;
-  gap: 2px;
-}
-
-.split-legend {
-  display: flex;
-  gap: 16px;
-  margin-top: 10px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.split-legend .swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  margin-right: 6px;
-}
-
 /* ---------- Meter ---------- */
 .meter-track {
   height: 16px;

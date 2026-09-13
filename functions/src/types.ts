@@ -5,7 +5,6 @@
 export type CategoryDef = {
   id: string;
   label: string;
-  needed: boolean;
   special?: "income" | "savings";
 };
 
@@ -14,9 +13,17 @@ export type SavingsGoal = {
   value: number;
 };
 
+export type FixedLineItem = {
+  id: string;
+  label: string;
+  amount: number;
+};
+
 export type UserSettings = {
   defaultSalary: number;
   savingsGoal: SavingsGoal;
+  fixedExpenses: FixedLineItem[];
+  fixedIncomes: FixedLineItem[];
 };
 
 export type Transaction = {
@@ -28,7 +35,6 @@ export type Transaction = {
   merchantRaw: string;
   merchantNormalized: string;
   category: string | null;
-  needed: boolean | null;
   needsReview: boolean;
   source: "manual-import" | "manual-edit" | "auto";
   confidence?: number;
@@ -41,8 +47,9 @@ export type DashboardDoc = {
   month: string;
   salary: number;
   totalsByCategory: Record<string, number>;
-  neededTotal: number;
-  discretionaryTotal: number;
+  totalExpenses: number;
+  fixedExpensesTotal: number;
+  fixedIncomesTotal: number;
   savingsGoalTarget: number;
   savingsActual: number;
   moneyLeft: number;

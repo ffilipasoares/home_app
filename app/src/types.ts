@@ -5,23 +5,37 @@
 
 export type SavingsGoal = {
   type: "fixed" | "percent";
-  /** A € amount when type is "fixed", or a 0-100 percent-of-salary when "percent". */
+  /** A € amount when type is "fixed", or a 0-100 percent-of-income when "percent". */
   value: number;
 };
 
+/**
+ * A recurring amount that never shows up as a transaction in this account
+ * — e.g. rent paid from a different account, or a partner's income/
+ * contribution that doesn't land here. Entered once in Settings and folded
+ * into the monthly math alongside whatever the imported transactions show.
+ */
+export type FixedLineItem = {
+  id: string;
+  label: string;
+  amount: number;
+};
+
 export type UserSettings = {
+  /** Fallback used when no "income"-special-category transaction is found this month. */
   defaultSalary: number;
   savingsGoal: SavingsGoal;
+  fixedExpenses: FixedLineItem[];
+  fixedIncomes: FixedLineItem[];
 };
 
 export type CategoryDef = {
   id: string;
   label: string;
-  needed: boolean;
   /**
-   * Income and savings-transfer categories are excluded from "expenses" —
-   * they feed the salary figure / savings-goal progress instead. Everything
-   * else counts toward totalsByCategory / neededTotal / discretionaryTotal.
+   * Income and savings-transfer categories are excluded from
+   * totalsByCategory/totalExpenses — they feed the salary figure /
+   * savings-goal progress instead.
    */
   special?: "income" | "savings";
 };
@@ -38,7 +52,6 @@ export type Transaction = {
   merchantRaw: string;
   merchantNormalized: string;
   category: string | null;
-  needed: boolean | null;
   needsReview: boolean;
   source: TransactionSource;
   confidence?: number;
@@ -50,17 +63,18 @@ export type Transaction = {
 export type CategoryRule = {
   merchantNormalized: string;
   category: string;
-  needed: boolean;
   timesConfirmed: number;
   lastUpdated: number;
 };
 
 export type DashboardDoc = {
   month: string; // YYYY-MM
+  /** Detected "income"-category transactions this month, or defaultSalary if none. */
   salary: number;
   totalsByCategory: Record<string, number>;
-  neededTotal: number;
-  discretionaryTotal: number;
+  totalExpenses: number;
+  fixedExpensesTotal: number;
+  fixedIncomesTotal: number;
   savingsGoalTarget: number;
   savingsActual: number;
   moneyLeft: number;

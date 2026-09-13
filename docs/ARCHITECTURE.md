@@ -1,18 +1,26 @@
 # Architecture Design — Home Finance Agent
 
-Status: **Design proposal** (no code yet). Last updated 2026-09-12.
+Status: **Phase 0 built and running** (manual CSV import + manual
+categorization; no agent yet). Last updated 2026-09-13.
 
 ## 1. Goal & scope
 
 Build a personal system that, once a day:
 
 1. Pulls new bank transactions automatically (open banking, no manual export).
-2. Categorizes each transaction (category + **needed** vs **discretionary**),
-   learning from corrections over time instead of re-guessing every merchant.
-3. Maintains a monthly dashboard: spend by category, needed vs discretionary
-   split, savings-goal progress, and money left (salary − expenses − savings
-   goal).
+2. Categorizes each transaction, learning from corrections over time instead
+   of re-guessing every merchant.
+3. Maintains a monthly dashboard: spend by category, savings-goal progress,
+   and money left (income − expenses − fixed items − savings goal).
 4. Is reachable from an iPhone as an installable app.
+
+This is a joint-account budget, not a single-salary one: only one partner's
+salary typically lands in the tracked account, and some recurring costs
+(e.g. rent) are paid from a different account entirely and never appear as
+a transaction here at all. §6–§8 cover how the data model accounts for
+that — a general "fixed monthly items" mechanism (Settings-configured, not
+detected) rather than assuming every relevant amount shows up in this
+account's statement.
 
 Single user, low transaction volume (tens–low hundreds/month), no real-time
 requirement. That last point matters: it rules out several "always-on"
@@ -210,15 +218,15 @@ sequenceDiagram
     loop each transaction
         Job->>FS: lookup merchant in categoryRules cache
         alt cache hit, high trust
-            FS-->>Job: category, needed
+            FS-->>Job: category
         else cache miss / ambiguous
             Job->>Gemini: categorize(transaction, taxonomy)
-            Gemini-->>Job: category, needed, confidence
+            Gemini-->>Job: category, confidence
             Job->>FS: upsert categoryRules (if confidence high)
         end
         Job->>FS: upsert transaction (idempotent by external tx id)
     end
-    Job->>FS: recompute month's dashboard rollup
+    Job->>FS: recompute month's dashboard rollup (incl. Settings' fixed items)
     Job->>FS: update sync cursor
 ```
 
@@ -236,11 +244,11 @@ over a single monolithic script:
 |---|---|
 | `fetch_new_transactions(account_id, since_cursor)` | Calls the open banking API (or parses an uploaded CSV/PDF as fallback) |
 | `lookup_category_rule(merchant_normalized)` | Firestore cache lookup — avoids an LLM call for known merchants |
-| `categorize_transaction(transaction, taxonomy)` | Gemini structured-output call → `{category, needed, confidence}` |
-| `save_category_rule(merchant_normalized, category, needed)` | Writes/updates the learned cache when confidence is high |
-| `detect_salary(transactions, predefined_default)` | Heuristic (recurring largest monthly credit) with a pre-defined fallback value you set in Settings |
+| `categorize_transaction(transaction, taxonomy)` | Gemini structured-output call → `{category, confidence}` |
+| `save_category_rule(merchant_normalized, category)` | Writes/updates the learned cache when confidence is high |
+| `detect_salary(transactions, predefined_default)` | Heuristic (recurring largest monthly credit against the "income"-special category) with a pre-defined fallback value you set in Settings |
 | `upsert_transactions(transactions)` | Idempotent Firestore batch write |
-| `recompute_dashboard(month)` | Aggregates totals by category, needed/discretionary split, savings-goal progress, money left |
+| `recompute_dashboard(month)` | Aggregates totals by category, income vs. expenses, fixed items from Settings, savings-goal progress, money left — this exact logic already lives in `functions/src/dashboard.ts` (Phase 0's Cloud Function), so Phase 1 just calls the same function instead of re-implementing it |
 
 Structured output (JSON schema / controlled generation) is used for every
 Gemini call — never free-text parsing — so a malformed model response is a
@@ -250,68 +258,69 @@ validation error you can retry or flag, not a silent bad write.
 
 ```
 users/{uid}
-  displayName, defaultSalary, savingsGoal: { type: "fixed"|"percent", value }
+  defaultSalary, savingsGoal: { type: "fixed"|"percent", value },
+  fixedExpenses: [ { id, label, amount }, ... ],   -- e.g. rent, paid from another account
+  fixedIncomes:  [ { id, label, amount }, ... ]    -- e.g. a partner's contribution that never lands here
 
 users/{uid}/settings/categories        (single doc)
-  categories: [ { id, label, needed: bool }, ... ]   -- editable, seeded from §7
+  categories: [ { id, label, special?: "income"|"savings" }, ... ]   -- editable, seeded from §7
 
 users/{uid}/accounts/{accountId}
   provider, consentExpiresAt, lastSyncCursor, bankName
 
 users/{uid}/transactions/{externalTxId}
   date, amount, currency, merchantRaw, merchantNormalized,
-  category, needed: bool, source: "auto"|"manual-edit",
+  category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import",
   confidence, month: "YYYY-MM", accountId
 
 users/{uid}/categoryRules/{merchantNormalized}
-  category, needed, timesConfirmed, lastUpdated
+  category, timesConfirmed, lastUpdated
 
 users/{uid}/dashboards/{YYYY-MM}
-  salary, totalsByCategory: { [categoryId]: amount },
-  neededTotal, discretionaryTotal, savingsGoal, moneyLeft, updatedAt
+  salary, totalsByCategory: { [categoryId]: amount }, totalExpenses,
+  fixedExpensesTotal, fixedIncomesTotal, savingsGoalTarget, savingsActual,
+  moneyLeft, needsReviewCount, updatedAt
 ```
 
 Firestore security rules: every path above scoped to
-`request.auth.uid == uid` and `uid` pinned to your one allow-listed
-account — deny-by-default for everyone/everything else.
+`request.auth.uid == uid` **and** the one allow-listed account email —
+deny-by-default for everyone/everything else.
 
 ## 7. Default category taxonomy
 
-A starting set, editable per-category in Settings at any time (rename, add,
-remove, flip needed/discretionary) — nothing here is hardcoded in the
-agent, it reads the taxonomy from `users/{uid}/settings/categories`:
+A starting set, fully editable in Settings (rename, add, remove, or reset
+to this list) — nothing is hardcoded in the agent, it reads the taxonomy
+from `users/{uid}/settings/categories`. No needed/discretionary split —
+that distinction wasn't pulling its weight in practice, so it was dropped
+after Phase 0 testing:
 
-| Category | Default |
+| Category | Special role |
 |---|---|
-| Housing (rent/mortgage) | Needed |
-| Utilities (electricity, water, gas, internet, phone) | Needed |
-| Groceries | Needed |
-| Transport (fuel, public transport, tolls, maintenance) | Needed |
-| Health & Insurance | Needed |
-| Debt / Loan payments | Needed |
-| Education / Childcare | Needed |
-| Dining Out & Takeaway | Discretionary |
-| Entertainment & Leisure | Discretionary |
-| Shopping (clothing, electronics, general retail) | Discretionary |
-| Subscriptions (streaming, apps, memberships) | Discretionary |
-| Travel / Holidays | Discretionary |
-| Savings / Investment transfer | *Excluded from spend* — tracked against the savings goal |
-| Income / Salary | *Excluded from spend* — feeds the salary figure |
-| Other / Uncategorized | Flagged `needs_review`, not silently guessed |
+| Salary | *Excluded from spend* — feeds the salary figure (`special: "income"`) |
+| Food | — |
+| Transport | — |
+| Needs | — |
+| Invest | *Excluded from spend* — tracked against the savings goal (`special: "savings"`) |
+| Entertainment | — |
+| Others | Default fallback for anything uncategorized |
 
 ## 8. Dashboard contents & the "money left" formula
 
-- Expenses by category (this month), as a bar or donut chart.
-- Needed vs discretionary split (both as a total and per category).
+- Expenses by category (this month, from categorized transactions only),
+  as a bar chart.
 - Savings goal progress: target for the month vs amount actually moved to
-  savings (from the "Savings/Investment transfer" category).
-- **Money left** = `salary − Σ(expenses) − savings_goal_target`, where
-  `salary` is the auto-detected recurring credit for the month, falling
-  back to your pre-defined default if none was detected (editable in
-  Settings either way — auto-detection should never silently override a
-  number you set yourself without showing it to you first).
+  "Invest".
+- Fixed monthly items (rent, a partner's contribution, etc. — configured
+  in Settings, never detected from a transaction) shown as their own list
+  so the money-left number is traceable to something other than "trust me".
+- **Money left** = `(salary + Σfixed incomes) − Σ(expenses) − Σfixed
+  expenses − savings_goal_target`, where `salary` is the auto-detected
+  "income"-category credit for the month, falling back to your pre-defined
+  default if none was detected (editable in Settings either way —
+  auto-detection should never silently override a number you set yourself
+  without showing it to you first).
 - Trend view across the last N months (same rollup collection, just a
-  range query).
+  range query) — not built yet, still a Phase 0 gap.
 
 ## 9. Security & privacy notes
 
@@ -373,10 +382,13 @@ Realistic total: **under $1–2/month**, likely $0 most months.
 
 - Which bank(s) and which aggregator (Enable Banking vs. any existing
   GoCardless access) — needs a coverage check for your specific bank.
-- Savings goal shape: a fixed € amount per month, or a percentage of
-  detected salary?
-- What should happen to a `needs_review` transaction on the dashboard —
-  just flagged, or excluded from the totals until confirmed?
+- Is one "Salary" category (matching whichever partner's income actually
+  lands in this account) still enough once bank sync is live, or does the
+  agent need to distinguish multiple real income transactions by payer?
+- `needs_review` transactions are excluded from `totalsByCategory` /
+  `totalExpenses` until categorized (settled by the Phase 0 implementation)
+  — revisit only if that undercounts spend in a way that's actually
+  confusing in practice.
 
 ---
 
