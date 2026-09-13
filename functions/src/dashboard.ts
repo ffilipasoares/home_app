@@ -67,7 +67,10 @@ export async function recomputeMonth(uid: string, month: string): Promise<void> 
   const savingsGoalTarget =
     settings.savingsGoal.type === "fixed" ? settings.savingsGoal.value : (settings.savingsGoal.value / 100) * totalIncome;
 
-  const moneyLeft = totalIncome - totalExpenses - fixedExpensesTotal - savingsGoalTarget;
+  // Money left is what's actually left — income minus real spend — not
+  // further reduced by the savings goal, which is a target you're compared
+  // against (see savingsActual/savingsGoalTarget), not a guaranteed outflow.
+  const moneyLeft = totalIncome - totalExpenses - fixedExpensesTotal;
 
   const dashboard: DashboardDoc = {
     month,

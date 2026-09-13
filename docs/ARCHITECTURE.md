@@ -309,16 +309,19 @@ after Phase 0 testing:
 - Expenses by category (this month, from categorized transactions only),
   as a bar chart.
 - Savings goal progress: target for the month vs amount actually moved to
-  "Invest".
+  "Invest" — a comparison, not a deduction (see below).
 - Fixed monthly items (rent, a partner's contribution, etc. — configured
   in Settings, never detected from a transaction) shown as their own list
   so the money-left number is traceable to something other than "trust me".
 - **Money left** = `(salary + Σfixed incomes) − Σ(expenses) − Σfixed
-  expenses − savings_goal_target`, where `salary` is the auto-detected
-  "income"-category credit for the month, falling back to your pre-defined
-  default if none was detected (editable in Settings either way —
-  auto-detection should never silently override a number you set yourself
-  without showing it to you first).
+  expenses` — plainly income minus real spend, where `salary` is the
+  auto-detected "income"-category credit for the month, falling back to
+  your pre-defined default if none was detected (editable in Settings
+  either way — auto-detection should never silently override a number you
+  set yourself without showing it to you first). The savings goal is
+  **not** subtracted here — it's a target you're compared against via the
+  savings meter, not a guaranteed outflow, so it shouldn't shrink a number
+  that's supposed to mean "what's actually left."
 - Trend view across the last N months (same rollup collection, just a
   range query) — not built yet, still a Phase 0 gap.
 
