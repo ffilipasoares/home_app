@@ -163,6 +163,23 @@ Vertex AI call in `functions/categorize.py` won't work in the emulator
 without its own credentials setup, though — cache-hit categorization and
 everything else will).
 
+### Testing the categorization agent in isolation
+
+`scripts/test_categorize.py` calls the agent directly against a handful of
+sample transactions — no Firestore, no deployed function, no CSV import.
+The fastest way to see how it actually behaves (which merchants it
+recognizes, whether its confidence is sensible) or iterate on
+`functions/categorize.py`'s instruction/tools:
+
+```bash
+gcloud auth application-default login   # once
+cd functions && source venv/bin/activate && cd ..
+GOOGLE_CLOUD_PROJECT=your-firebase-project-id python3 scripts/test_categorize.py
+```
+
+Edit the sample categories/rules/merchants at the top of the script to
+match your real Settings categories and actual statement merchant strings.
+
 ## Cost
 
 Hosting, Firestore, Auth, and the Cloud Functions all sit inside Firebase/
