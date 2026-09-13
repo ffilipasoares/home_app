@@ -8,7 +8,7 @@ import { NavBar } from "./NavBar";
  * rules enforce the same restriction server-side regardless of what this
  * component does. */
 export function AuthGate({ children }: { children: ReactNode }) {
-  const { status, user, signIn, signOut } = useAuth();
+  const { status, user, error, signIn, signOut } = useAuth();
 
   useEffect(() => {
     if (status === "ready" && user) {
@@ -33,6 +33,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <button type="button" className="button" onClick={() => signIn()}>
             Sign in with Google
           </button>
+          {error && (
+            <p style={{ color: "var(--status-critical)", fontSize: 13, marginTop: 12 }}>{error}</p>
+          )}
         </div>
       </div>
     );
