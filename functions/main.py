@@ -1,7 +1,7 @@
 """Cloud Functions entry point. Firebase's Python Functions Framework
 discovers the functions exported below.
 
-Three responsibilities, split across two triggers, all idempotent:
+Four responsibilities, split across two triggers, all idempotent:
   1. Learn a merchant -> category rule when a human confirms one (a
      manual-edit).
   2. Auto-categorize a freshly-imported transaction that has no category
@@ -9,7 +9,13 @@ Three responsibilities, split across two triggers, all idempotent:
      which re-triggers on_transaction_write once more; the second pass
      sees `category` already set and skips straight to recompute, so this
      always terminates in exactly two invocations, never a loop.
-  3. Recompute that month's dashboard doc from scratch on every
+  3. The moment a transaction's category is first set (or changes) to the
+     "income"-special category, decide whether it belongs to next month
+     instead of its calendar month (see budget_month.py) — applied once,
+     on that transition, never re-applied on a later write that doesn't
+     change the category, so a manual "move to a different month"
+     afterward isn't fought by this rule re-asserting itself.
+  4. Recompute that month's dashboard doc from scratch on every
      transaction write or income edit (see dashboard.py).
 
 A CSV import writing 100 rows fires (1) 100 times for the same month;
@@ -25,12 +31,22 @@ from firebase_admin import firestore
 from firebase_functions import firestore_fn
 from google.cloud.firestore_v1 import Increment
 
+from budget_month import resolve_budget_month
 from categorize import CONFIDENCE_THRESHOLD, categorize_transaction
 from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
 from schema import CategoryDef, Transaction
 
 firebase_admin.initialize_app()
+
+
+def _load_categories(uid: str) -> list[CategoryDef]:
+    snap = firestore.client().collection("users").document(uid).collection("settings").document("categories").get()
+    return (snap.to_dict() or {}).get("categories", [])
+
+
+def _special_for(categories: list[CategoryDef], category_id: str) -> str | None:
+    return next((c.get("special") for c in categories if c["id"] == category_id), None)
 
 
 async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> None:
@@ -47,29 +63,37 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> None:
     db = firestore.client()
     tx_ref = db.collection("users").document(uid).collection("transactions").document(tx_id)
     now_ms = int(time.time() * 1000)
+    categories = _load_categories(uid)
 
     exact_rule = find_exact_category_rule(uid, tx["merchantNormalized"])
     if exact_rule:
+        month = resolve_budget_month(tx["date"], tx["month"], _special_for(categories, exact_rule["category"]))
         tx_ref.update(
-            {"category": exact_rule["category"], "needsReview": False, "source": "auto", "confidence": 1, "updatedAt": now_ms}
+            {
+                "category": exact_rule["category"],
+                "needsReview": False,
+                "source": "auto",
+                "confidence": 1,
+                "month": month,
+                "updatedAt": now_ms,
+            }
         )
         return
 
-    categories_snap = db.collection("users").document(uid).collection("settings").document("categories").get()
-    categories: list[CategoryDef] = (categories_snap.to_dict() or {}).get("categories", [])
     recent_rules = list_recent_category_rules(uid)
-
     result = await categorize_transaction(tx["merchantRaw"], tx["amount"], categories, recent_rules)
     if result is None:
         return
 
     confident = result["confidence"] >= CONFIDENCE_THRESHOLD
+    month = resolve_budget_month(tx["date"], tx["month"], _special_for(categories, result["category"]))
     tx_ref.update(
         {
             "category": result["category"],
             "needsReview": not confident,
             "source": "auto",
             "confidence": result["confidence"],
+            "month": month,
             "updatedAt": now_ms,
         }
     )
@@ -101,7 +125,18 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
         print(f"Transaction write with no month on either side: uid={uid} txId={tx_id}")
         return
 
+    category_changed = after is not None and (before or {}).get("category") != after.get("category")
+
     if after and after.get("source") == "manual-edit" and after.get("category"):
+        if category_changed:
+            categories = _load_categories(uid)
+            new_month = resolve_budget_month(after["date"], after["month"], _special_for(categories, after["category"]))
+            if new_month != after["month"]:
+                firestore.client().collection("users").document(uid).collection("transactions").document(tx_id).update(
+                    {"month": new_month}
+                )
+                month = new_month  # so this invocation's own recompute below already uses it
+
         firestore.client().collection("users").document(uid).collection("categoryRules").document(
             after["merchantNormalized"]
         ).set(
@@ -122,8 +157,8 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
     recompute_month(uid, month)
     # A transaction can be moved to a different budget month than its date
     # (e.g. a salary paid on the 25th that belongs to next month) — if
-    # before.month differs from after.month, recompute the vacated month
-    # too so its totals don't go stale.
+    # before.month differs from the month we ended up using, recompute the
+    # vacated month too so its totals don't go stale.
     before_month = (before or {}).get("month")
     if before_month and before_month != month:
         recompute_month(uid, before_month)

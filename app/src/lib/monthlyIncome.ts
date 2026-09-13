@@ -1,8 +1,8 @@
-import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import type { MonthlyIncome } from "../types";
 
-const EMPTY: MonthlyIncome = { salary: null, fixedIncomes: [] };
+const EMPTY: MonthlyIncome = { filipaSalary: null, joaoSalary: null };
 
 function monthlyIncomeRef(uid: string, month: string) {
   return doc(db, "users", uid, "monthlyIncome", month);
@@ -20,13 +20,7 @@ export function subscribeMonthlyIncome(
   );
 }
 
-/** Writing here is what triggers the Cloud Function to recompute this month's dashboard (see functions/src/index.ts onMonthlyIncomeWrite). */
+/** Writing here is what triggers the Cloud Function to recompute this month's dashboard (see functions/main.py's on_monthly_income_write). */
 export async function saveMonthlyIncome(uid: string, month: string, income: MonthlyIncome): Promise<void> {
   await setDoc(monthlyIncomeRef(uid, month), income);
-}
-
-/** Convenience for the common case — fixed incomes (a partner's contribution) rarely change month to month, so offer to carry the previous month's list forward rather than retyping it. Salary is deliberately not copied: it's supposed to be confirmed each month, not silently repeated. */
-export async function fetchPreviousMonthFixedIncomes(uid: string, previousMonth: string) {
-  const snap = await getDoc(monthlyIncomeRef(uid, previousMonth));
-  return (snap.data() as MonthlyIncome | undefined)?.fixedIncomes ?? [];
 }

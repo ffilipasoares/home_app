@@ -32,14 +32,13 @@ export type UserSettings = {
  * Income for one specific month, entered/confirmed on the Dashboard itself
  * — not global Settings — precisely so it's a per-month historical record:
  * scrolling back to review July shows what July's income actually was,
- * unaffected by anything you change going forward. `salary: null` means
- * "not manually confirmed for this month, use whatever an 'income'-special
- * category transaction shows" (see DashboardDoc.salarySource).
+ * unaffected by anything you change going forward.
  */
 export type MonthlyIncome = {
-  salary: number | null;
-  /** e.g. a partner's salary/contribution that never lands in this account. */
-  fixedIncomes: FixedLineItem[];
+  /** Manual override; null = use whatever an "income"-special-category transaction shows this month (see DashboardDoc.filipaSalarySource). */
+  filipaSalary: number | null;
+  /** Always manual — João's salary never lands in this account, so there's nothing to auto-detect. */
+  joaoSalary: number | null;
 };
 
 export type CategoryDef = {
@@ -103,15 +102,16 @@ export type CategoryRule = {
 
 export type DashboardDoc = {
   month: string; // YYYY-MM
-  /** The figure actually used in the math: the manual entry if set, else autoDetectedSalary. */
-  salary: number;
-  /** Always the sum of "income"-special-category transactions this month, regardless of any manual entry — shown as a hint on the Dashboard's salary input. */
-  autoDetectedSalary: number;
-  salarySource: "manual" | "auto" | "none";
+  /** The figure actually used in the math: the manual entry if set, else autoDetectedFilipaSalary. */
+  filipaSalary: number;
+  /** Always the sum of "income"-special-category transactions this month, regardless of any manual entry — shown as a hint on the Dashboard's Filipa's Salary input. */
+  autoDetectedFilipaSalary: number;
+  filipaSalarySource: "manual" | "auto" | "none";
+  /** Always manual — see MonthlyIncome.joaoSalary. */
+  joaoSalary: number;
   totalsByCategory: Record<string, number>;
   totalExpenses: number;
   fixedExpensesTotal: number;
-  fixedIncomesTotal: number;
   savingsGoalTarget: number;
   savingsActual: number;
   moneyLeft: number;

@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -79,6 +80,11 @@ export async function updateTransactionMonth(uid: string, txId: string, month: s
   await writeBatch(db)
     .set(doc(transactionsCol(uid), txId), { month, updatedAt: Date.now() }, { merge: true })
     .commit();
+}
+
+/** Removes a transaction entirely — the Cloud Function trigger still fires on a delete and recomputes the month it was counted in, so it drops out of every total, not just the visible list. */
+export async function deleteTransaction(uid: string, txId: string): Promise<void> {
+  await deleteDoc(doc(transactionsCol(uid), txId));
 }
 
 /** Bulk-writes imported rows as uncategorized transactions flagged for review. Chunks into multiple batches once past Firestore's per-batch write limit. */

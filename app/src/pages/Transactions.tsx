@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
-import { subscribeMonthTransactions, updateTransactionCategory, updateTransactionMonth } from "../lib/transactions";
+import {
+  deleteTransaction,
+  subscribeMonthTransactions,
+  updateTransactionCategory,
+  updateTransactionMonth,
+} from "../lib/transactions";
 import { subscribeAvailableMonths } from "../lib/dashboard";
 import { subscribeCategories } from "../lib/settings";
 import { currentMonth } from "../lib/month";
@@ -13,34 +18,43 @@ function TransactionRow({
   categories,
   onSaveCategory,
   onMove,
+  onDelete,
 }: {
   tx: Transaction;
   categories: CategoryDef[];
   onSaveCategory: (category: string) => void;
   onMove: (month: string) => void;
+  onDelete: () => void;
 }) {
+  // Needs-review rows open ready to act on; an already-confirmed
+  // transaction stays a quiet, compact summary line until you ask to
+  // edit it — no controls competing for attention on every single row.
+  const [expanded, setExpanded] = useState(tx.needsReview);
   const [category, setCategory] = useState(tx.category ?? "");
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
-  // An AI suggestion pre-fills `category` but leaves needsReview true — Save
-  // should still confirm it in one tap without requiring you to change the
-  // dropdown first just to make it "dirty".
   const canSaveCategory = !!category && (categoryDirty || tx.needsReview);
+  const categoryLabel = categories.find((c) => c.id === tx.category)?.label;
+
+  function handleDelete() {
+    if (confirm(`Delete this transaction (${tx.merchantRaw}, ${formatCurrency(tx.amount, tx.currency)})? This can't be undone.`)) {
+      onDelete();
+    }
+  }
 
   return (
     <div className="tx-row" style={{ flexWrap: "wrap" }}>
-      <div className="tx-main" style={{ flex: "1 1 100%" }}>
+      <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
         <div className="tx-merchant">
           {tx.merchantRaw}
           {tx.needsReview && (
-            <span className="badge">
-              {tx.category && tx.source === "auto" ? "confirm suggestion" : "needs review"}
-            </span>
+            <span className="badge">{tx.category && tx.source === "auto" ? "confirm suggestion" : "needs review"}</span>
           )}
         </div>
         <div className="tx-date">
           {tx.date}
+          {!expanded && categoryLabel && <> · {categoryLabel}</>}
           {tx.category && tx.needsReview && tx.confidence !== undefined && (
             <> · AI guess, {(tx.confidence * 100).toFixed(0)}% confident</>
           )}
@@ -54,44 +68,62 @@ function TransactionRow({
           </div>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, flex: "1 1 100%", marginTop: 4, flexWrap: "wrap" }}>
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="" disabled>
-            Choose category…
-          </option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="button"
-          style={{ padding: "8px 14px" }}
-          disabled={!canSaveCategory}
-          onClick={() => onSaveCategory(category)}
-        >
-          {tx.needsReview && !categoryDirty && tx.category ? "Confirm" : "Save"}
-        </button>
-      </div>
-      <details style={{ flex: "1 1 100%", marginTop: 2 }}>
-        <summary style={{ fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
-          Counts toward {tx.month} — move to a different month?
-        </summary>
-        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <input type="month" value={budgetMonth} onChange={(e) => setBudgetMonth(e.target.value)} />
-          <button
-            type="button"
-            className="button secondary"
-            style={{ padding: "8px 14px" }}
-            disabled={!monthDirty}
-            onClick={() => onMove(budgetMonth)}
-          >
-            Move
-          </button>
+      <button
+        type="button"
+        className="button secondary"
+        style={{ padding: "4px 10px", fontSize: 12 }}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {expanded ? "Close" : "Edit"}
+      </button>
+
+      {expanded && (
+        <div style={{ flex: "1 1 100%", marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="" disabled>
+                Choose category…
+              </option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="button"
+              style={{ padding: "8px 14px" }}
+              disabled={!canSaveCategory}
+              onClick={() => onSaveCategory(category)}
+            >
+              {tx.needsReview && !categoryDirty && tx.category ? "Confirm" : "Save"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <label style={{ fontSize: 12, color: "var(--text-muted)" }}>Counts toward</label>
+            <input type="month" value={budgetMonth} onChange={(e) => setBudgetMonth(e.target.value)} style={{ width: 140 }} />
+            <button
+              type="button"
+              className="button secondary"
+              style={{ padding: "6px 12px" }}
+              disabled={!monthDirty}
+              onClick={() => onMove(budgetMonth)}
+            >
+              Move
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              style={{ padding: "6px 12px", marginLeft: "auto", color: "var(--status-critical)" }}
+              onClick={handleDelete}
+            >
+              Delete
+            </button>
+          </div>
         </div>
-      </details>
+      )}
     </div>
   );
 }
@@ -125,6 +157,7 @@ export function Transactions() {
             categories={categories}
             onSaveCategory={(category) => updateTransactionCategory(uid, tx.id, category)}
             onMove={(newMonth) => updateTransactionMonth(uid, tx.id, newMonth)}
+            onDelete={() => deleteTransaction(uid, tx.id)}
           />
         ))}
       </div>

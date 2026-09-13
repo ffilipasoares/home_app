@@ -33,8 +33,12 @@ class UserSettings(TypedDict):
 
 
 class MonthlyIncome(TypedDict):
-    salary: float | None
-    fixedIncomes: list[FixedLineItem]
+    # Manual override; null = use the "income"-special-category
+    # transaction total detected for the month (see DashboardDoc).
+    filipaSalary: float | None
+    # Always manual — João's salary never lands in this account, so
+    # there's nothing to auto-detect.
+    joaoSalary: float | None
 
 
 class CategoryRule(TypedDict):
@@ -88,13 +92,13 @@ class AccountLink(TypedDict, total=False):
 
 class DashboardDoc(TypedDict):
     month: str
-    salary: float
-    autoDetectedSalary: float
-    salarySource: Literal["manual", "auto", "none"]
+    filipaSalary: float
+    autoDetectedFilipaSalary: float
+    filipaSalarySource: Literal["manual", "auto", "none"]
+    joaoSalary: float
     totalsByCategory: dict[str, float]
     totalExpenses: float
     fixedExpensesTotal: float
-    fixedIncomesTotal: float
     savingsGoalTarget: float
     savingsActual: float
     moneyLeft: float

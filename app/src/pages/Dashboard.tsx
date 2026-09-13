@@ -3,24 +3,17 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
-import { fetchPreviousMonthFixedIncomes, saveMonthlyIncome, subscribeMonthlyIncome } from "../lib/monthlyIncome";
+import { saveMonthlyIncome, subscribeMonthlyIncome } from "../lib/monthlyIncome";
 import { currentMonth } from "../lib/month";
 import { MonthPicker } from "../components/MonthPicker";
 import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
-import { FixedItemsEditor } from "../components/FixedItemsEditor";
 import { formatCurrency } from "../lib/format";
-import type { CategoryDef, DashboardDoc, FixedLineItem, MonthlyIncome, UserSettings } from "../types";
-
-function previousMonth(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  const d = new Date(Date.UTC(y, m - 2, 1)); // m is 1-indexed; -2 -> previous month, 0-indexed
-  return d.toISOString().slice(0, 7);
-}
+import type { CategoryDef, DashboardDoc, MonthlyIncome, UserSettings } from "../types";
 
 function IncomeEditor({ uid, month, dashboard }: { uid: string; month: string; dashboard: DashboardDoc | null }) {
-  const [income, setIncome] = useState<MonthlyIncome>({ salary: null, fixedIncomes: [] });
+  const [income, setIncome] = useState<MonthlyIncome>({ filipaSalary: null, joaoSalary: null });
   const [savedNote, setSavedNote] = useState<string | null>(null);
 
   useEffect(() => subscribeMonthlyIncome(uid, month, setIncome), [uid, month]);
@@ -31,47 +24,45 @@ function IncomeEditor({ uid, month, dashboard }: { uid: string; month: string; d
     setTimeout(() => setSavedNote(null), 2000);
   }
 
-  async function handleCopyFixedIncomes() {
-    const items = await fetchPreviousMonthFixedIncomes(uid, previousMonth(month));
-    setIncome((cur) => ({ ...cur, fixedIncomes: items }));
-  }
-
   return (
     <div className="card">
       <h2>Income — {month}</h2>
-      <div className="field">
-        <label>
-          Salary this month
-          {dashboard && dashboard.autoDetectedSalary > 0 && (
-            <> (auto-detected from a "Salary" transaction: {formatCurrency(dashboard.autoDetectedSalary)} — leave blank to use it)</>
-          )}
-        </label>
-        <input
-          type="number"
-          value={income.salary ?? ""}
-          placeholder={dashboard?.autoDetectedSalary ? String(dashboard.autoDetectedSalary) : "Not recorded"}
-          onChange={(e) => setIncome({ ...income, salary: e.target.value === "" ? null : Number(e.target.value) })}
-        />
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="field" style={{ flex: "1 1 140px", marginBottom: 0 }}>
+          <label>
+            Filipa's Salary
+            {dashboard && dashboard.autoDetectedFilipaSalary > 0 && (
+              <> (detected: {formatCurrency(dashboard.autoDetectedFilipaSalary)})</>
+            )}
+          </label>
+          <input
+            type="number"
+            value={income.filipaSalary ?? ""}
+            placeholder={dashboard?.autoDetectedFilipaSalary ? String(dashboard.autoDetectedFilipaSalary) : "Not recorded"}
+            onChange={(e) =>
+              setIncome({ ...income, filipaSalary: e.target.value === "" ? null : Number(e.target.value) })
+            }
+          />
+        </div>
+        <div className="field" style={{ flex: "1 1 140px", marginBottom: 0 }}>
+          <label>João's Salary</label>
+          <input
+            type="number"
+            value={income.joaoSalary ?? ""}
+            placeholder="Not recorded"
+            onChange={(e) => setIncome({ ...income, joaoSalary: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </div>
       </div>
 
-      <FixedItemsEditor
-        title="Other income (e.g. a partner's salary)"
-        hint="For household income that doesn't land in this account. Confirmed per month, on purpose — carried forward only if you ask."
-        items={income.fixedIncomes}
-        onChange={(fixedIncomes: FixedLineItem[]) => setIncome({ ...income, fixedIncomes })}
-      />
-      <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-        <button type="button" className="button" onClick={handleSave}>
-          Save
-        </button>
-        <button type="button" className="button secondary" onClick={handleCopyFixedIncomes}>
-          Copy from previous month
-        </button>
-        {savedNote && <span style={{ color: "var(--status-good)", alignSelf: "center" }}>{savedNote}</span>}
-      </div>
-      {dashboard && dashboard.salarySource === "none" && (
-        <p style={{ color: "var(--status-warning)", fontSize: 13, marginBottom: 0 }}>
-          No salary recorded for {month} yet — money left below excludes it until you add one.
+      <button type="button" className="button" style={{ marginTop: 14 }} onClick={handleSave}>
+        Save
+      </button>
+      {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
+
+      {dashboard && dashboard.filipaSalarySource === "none" && (
+        <p style={{ color: "var(--status-warning)", fontSize: 13, marginTop: 10, marginBottom: 0 }}>
+          No salary recorded for Filipa this month yet — money left below excludes it until you add one.
         </p>
       )}
     </div>
@@ -126,7 +117,7 @@ export function Dashboard() {
       {dashboard && (
         <>
           <div className="stat-row">
-            <StatTile label="Income this month" value={dashboard.salary + dashboard.fixedIncomesTotal} />
+            <StatTile label="Income this month" value={dashboard.filipaSalary + dashboard.joaoSalary} />
             <StatTile label="Money left" value={dashboard.moneyLeft} hero />
           </div>
 

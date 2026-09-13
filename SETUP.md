@@ -126,11 +126,11 @@ home screen like an installed app.
 
 ## 9. Try it end-to-end
 
-1. **Dashboard** → for the current month, enter your **Salary** (or leave
-   it blank once a "Salary"-categorized transaction shows up — see below)
-   and, if relevant, a partner's contribution under "Other income". This is
-   per-month data on purpose, so it's a habit each month, not a one-time
-   setting.
+1. **Dashboard** → for the current month, enter **Filipa's Salary** (or
+   leave it blank once a "Salary"-categorized transaction shows up — see
+   below) and **João's Salary** (always manual — it never lands in this
+   account). This is per-month data on purpose, so it's a habit each
+   month, not a one-time setting.
 2. **Settings** → set your savings goal, add **Rent** (or any other cost
    that never shows up as a transaction here) under "Fixed monthly
    expenses", and check the category list matches how you actually want to
@@ -142,11 +142,14 @@ home screen like an installed app.
    arrival: a known merchant is instant and free (the learned-rules cache),
    an unfamiliar one gets a Gemini call and either lands categorized or as
    a pre-filled suggestion flagged "confirm suggestion".
-4. **Transactions** → tap **Confirm** on any suggestion that looks right,
-   or change the category first if it doesn't — either way, that teaches
-   the cache for next time. A transaction whose *date* doesn't match the
-   month it should count toward (e.g. a salary paid the 25th of the prior
-   month) can be moved via the "Counts toward…" disclosure on its row.
+4. **Transactions** → a needs-review row opens with its category picker
+   ready; tap **Confirm** if the suggestion looks right, or change it
+   first if it doesn't — either way, that teaches the cache for next
+   time. An already-confirmed row stays a quiet one-line summary — tap
+   **Edit** to recategorize, move it to a different budget month
+   (salary paid in the last week of a month is moved to next month
+   automatically; this is for anything else that needs it), or **Delete**
+   it outright.
 5. **Dashboard** → updates within a couple of seconds of each save.
 
 ## Local development

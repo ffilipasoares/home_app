@@ -43,8 +43,8 @@ def recompute_month(uid: str, month: str) -> None:
     savings_goal = settings_data.get("savingsGoal", {"type": "fixed", "value": 0})
 
     income_data: MonthlyIncome = monthly_income_snap.to_dict() or {}  # type: ignore[assignment]
-    manual_salary = income_data.get("salary")
-    fixed_incomes = income_data.get("fixedIncomes", [])
+    manual_filipa_salary = income_data.get("filipaSalary")
+    joao_salary = income_data.get("joaoSalary") or 0.0
 
     auto_detected_salary = 0.0
     savings_actual = 0.0
@@ -91,12 +91,11 @@ def recompute_month(uid: str, month: str) -> None:
     # number you sat down and confirmed for this specific month) — it
     # doesn't add to the auto-detected figure, it replaces it, so a
     # categorized transaction and a manual entry never double-count.
-    salary = manual_salary if manual_salary is not None else auto_detected_salary
-    salary_source = "manual" if manual_salary is not None else ("auto" if auto_detected_salary > 0 else "none")
+    filipa_salary = manual_filipa_salary if manual_filipa_salary is not None else auto_detected_salary
+    filipa_salary_source = "manual" if manual_filipa_salary is not None else ("auto" if auto_detected_salary > 0 else "none")
 
     fixed_expenses_total = sum(item["amount"] for item in fixed_expenses)
-    fixed_incomes_total = sum(item["amount"] for item in fixed_incomes)
-    total_income = salary + fixed_incomes_total
+    total_income = filipa_salary + joao_salary
 
     if savings_goal["type"] == "fixed":
         savings_goal_target = savings_goal["value"]
@@ -111,13 +110,13 @@ def recompute_month(uid: str, month: str) -> None:
 
     dashboard: DashboardDoc = {
         "month": month,
-        "salary": salary,
-        "autoDetectedSalary": auto_detected_salary,
-        "salarySource": salary_source,  # type: ignore[typeddict-item]
+        "filipaSalary": filipa_salary,
+        "autoDetectedFilipaSalary": auto_detected_salary,
+        "filipaSalarySource": filipa_salary_source,  # type: ignore[typeddict-item]
+        "joaoSalary": joao_salary,
         "totalsByCategory": totals_by_category,
         "totalExpenses": total_expenses,
         "fixedExpensesTotal": fixed_expenses_total,
-        "fixedIncomesTotal": fixed_incomes_total,
         "savingsGoalTarget": savings_goal_target,
         "savingsActual": savings_actual,
         "moneyLeft": money_left,

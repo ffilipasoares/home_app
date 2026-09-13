@@ -322,8 +322,8 @@ users/{uid}/settings/categories        (single doc)
   categories: [ { id, label, special?: "income"|"savings" }, ... ]   -- editable, seeded from §7
 
 users/{uid}/monthlyIncome/{YYYY-MM}
-  salary: number | null,                          -- manual per-month entry; null = use auto-detected
-  fixedIncomes: [ { id, label, amount }, ... ]     -- e.g. a partner's salary that never lands here, per month
+  filipaSalary: number | null,   -- manual override; null = use auto-detected
+  joaoSalary: number | null      -- always manual — never lands in this account, nothing to auto-detect
 
 users/{uid}/accounts/{accountId}
   provider, displayName, currency, lastSyncCursor, consentExpiresAt
@@ -335,15 +335,16 @@ users/{uid}/accounts/{accountId}
 users/{uid}/transactions/{externalTxId}
   date, amount, currency, amountHome?, merchantRaw, merchantNormalized,
   category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import",
-  confidence, month: "YYYY-MM" (the budget month — independently editable from date, see §8), accountId
+  confidence, month: "YYYY-MM" (the budget month — independently editable
+  from date, either by hand or automatically, see §8), accountId
 
 users/{uid}/categoryRules/{merchantNormalized}
   category, timesConfirmed, lastUpdated
 
 users/{uid}/dashboards/{YYYY-MM}
-  salary, autoDetectedSalary, salarySource: "manual"|"auto"|"none",
-  totalsByCategory: { [categoryId]: amount }, totalExpenses,
-  fixedExpensesTotal, fixedIncomesTotal, savingsGoalTarget, savingsActual,
+  filipaSalary, autoDetectedFilipaSalary, filipaSalarySource: "manual"|"auto"|"none",
+  joaoSalary, totalsByCategory: { [categoryId]: amount }, totalExpenses,
+  fixedExpensesTotal, savingsGoalTarget, savingsActual,
   moneyLeft, needsReviewCount, updatedAt
 ```
 
@@ -354,6 +355,13 @@ salary" would let a value you update today silently rewrite what every
 past month's dashboard shows the next time it happens to recompute. Rent
 (`fixedExpenses`) stays global for now since it's assumed stable; revisit
 the same way if that stops being true.
+
+Named per-person rather than a generic "salary + other income" (the
+original design): the joint account only ever receives Filipa's salary as
+a real transaction, so it's the one field with auto-detection; João's is
+always a manual number, since there's nothing to detect. Displaying them
+side by side on the Dashboard (not "salary" plus a generic list) matches
+that reality directly instead of modeling it as a list with one item.
 
 **`amountHome`** exists for merging a multi-currency account (a Revolut
 login holding both EUR and GBP) into one figure: `functions/dashboard.py`
@@ -395,23 +403,38 @@ after Phase 0 testing:
   as a bar chart.
 - Savings goal progress: target for the month vs amount actually moved to
   "Invest" — a comparison, not a deduction (see below).
-- Income editor, right on the Dashboard, for the month being viewed: a
-  salary field (manual entry, with the auto-detected transaction amount
-  shown as a hint/placeholder if there is one) and an "other income" list
-  (e.g. a partner's salary that never lands in this account) — both are
-  per-month data (`monthlyIncome/{month}`, §6), not a global default, so
-  scrolling back to an old month shows what actually applied then.
+- Income editor, right on the Dashboard, for the month being viewed:
+  **Filipa's Salary** and **João's Salary**, side by side, both editable
+  — not a single salary field plus a generic "other income" list. Only
+  Filipa's has an auto-detected hint (a real "Salary"-category
+  transaction can land in this account; João's never does, so his is
+  always a plain manual number). Both are per-month data
+  (`monthlyIncome/{month}`, §6), not a global default, so scrolling back
+  to an old month shows what actually applied then.
+- A transaction categorized as income and dated in the **last week of its
+  month** is treated as *next* month's salary automatically
+  (`functions/budget_month.py`) — paid a few days early is a common
+  payroll pattern, and without this it would sit in the wrong month until
+  someone moved it by hand every time. Applied once, at the moment a
+  transaction's category is first set to "income" (whether by the agent
+  or a manual edit) — a later manual month override isn't fought by this
+  rule re-asserting itself, since it only runs on that category
+  transition, not on every write.
 - Fixed monthly expenses (rent etc. — configured in Settings, global,
   never detected from a transaction) shown as their own list so the
   money-left number is traceable to something other than "trust me".
-- **Money left** = `(salary + Σother income) − Σ(expenses) − Σfixed
-  expenses` — plainly income minus real spend, where `salary` is your
-  manual entry for the month if you gave one, else the auto-detected
+- **Money left** = `(filipaSalary + joaoSalary) − Σ(expenses) − Σfixed
+  expenses` — plainly income minus real spend, where `filipaSalary` is
+  your manual entry for the month if you gave one, else the auto-detected
   "income"-category transaction total, else 0 (flagged on the Dashboard
   as "not recorded" rather than silently treated as zero). The savings
   goal is **not** subtracted here — it's a target you're compared against
   via the savings meter, not a guaranteed outflow, so it shouldn't shrink
   a number that's supposed to mean "what's actually left."
+- A transaction can be **deleted** outright (Transactions screen) — the
+  Cloud Function trigger fires on delete too and recomputes the month it
+  was counted in, so it drops out of every total, not just the visible
+  list.
 - Trend view across the last N months (same rollup collection, just a
   range query) — not built yet, still a Phase 0 gap.
 
@@ -510,9 +533,9 @@ Settled:
   both currency pockets under one consent is the first thing to check
   once signed up (§11 step 2), not assumed here.
 - ~~Is one "Salary" category still enough~~ — moot: the joint account
-  only ever receives one partner's salary as a real transaction; the
-  other's is tracked via `monthlyIncome.fixedIncomes` (§6), not a second
-  income-category transaction.
+  only ever receives Filipa's salary as a real transaction; João's is
+  tracked via `monthlyIncome.joaoSalary` (§6), not a second income-category
+  transaction.
 - `needs_review` transactions are excluded from `totalsByCategory` /
   `totalExpenses` until categorized (settled by the Phase 0
   implementation) — revisit only if that undercounts spend in a way
