@@ -47,8 +47,10 @@ enforces it).
 
 ## 4. Point the Firebase CLI at your project
 
+From the repository root (if you're still inside `app/` from step 3, that's
+just `cd ..`):
+
 ```bash
-cd /path/to/home_app
 cp .firebaserc.example .firebaserc
 ```
 
