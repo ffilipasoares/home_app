@@ -4,10 +4,8 @@ import { DEFAULT_CATEGORIES } from "./categories";
 import type { CategoryDef, UserSettings } from "../types";
 
 const DEFAULT_SETTINGS: UserSettings = {
-  defaultSalary: 0,
   savingsGoal: { type: "fixed", value: 0 },
   fixedExpenses: [],
-  fixedIncomes: [],
 };
 
 function userRef(uid: string) {

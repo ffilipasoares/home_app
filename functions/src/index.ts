@@ -49,10 +49,21 @@ export const onTransactionWrite = onDocumentWritten("users/{uid}/transactions/{t
   }
 
   await recomputeMonth(uid, month);
-  // A category edit can move a transaction's date in theory (it can't
-  // today), but if before.month ever differs from after.month, recompute
-  // the vacated month too so its totals don't go stale.
+  // A transaction can be moved to a different budget month than its date
+  // (e.g. a salary paid on the 25th that belongs to next month) — if
+  // before.month differs from after.month, recompute the vacated month
+  // too so its totals don't go stale.
   if (before?.month && before.month !== month) {
     await recomputeMonth(uid, before.month);
   }
+});
+
+/**
+ * Fires when a month's income (salary + any partner contribution) is
+ * entered/edited from the Dashboard — see app/src/lib/monthlyIncome.ts.
+ * The doc id under monthlyIncome/{month} IS the month, so no fallback like
+ * onTransactionWrite needs is necessary here.
+ */
+export const onMonthlyIncomeWrite = onDocumentWritten("users/{uid}/monthlyIncome/{month}", async (event) => {
+  await recomputeMonth(event.params.uid, event.params.month);
 });

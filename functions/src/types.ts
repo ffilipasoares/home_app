@@ -20,9 +20,12 @@ export type FixedLineItem = {
 };
 
 export type UserSettings = {
-  defaultSalary: number;
   savingsGoal: SavingsGoal;
   fixedExpenses: FixedLineItem[];
+};
+
+export type MonthlyIncome = {
+  salary: number | null;
   fixedIncomes: FixedLineItem[];
 };
 
@@ -46,6 +49,8 @@ export type Transaction = {
 export type DashboardDoc = {
   month: string;
   salary: number;
+  autoDetectedSalary: number;
+  salarySource: "manual" | "auto" | "none";
   totalsByCategory: Record<string, number>;
   totalExpenses: number;
   fixedExpensesTotal: number;

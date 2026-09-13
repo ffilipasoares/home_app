@@ -258,12 +258,16 @@ validation error you can retry or flag, not a silent bad write.
 
 ```
 users/{uid}
-  defaultSalary, savingsGoal: { type: "fixed"|"percent", value },
-  fixedExpenses: [ { id, label, amount }, ... ],   -- e.g. rent, paid from another account
-  fixedIncomes:  [ { id, label, amount }, ... ]    -- e.g. a partner's contribution that never lands here
+  savingsGoal: { type: "fixed"|"percent", value },
+  fixedExpenses: [ { id, label, amount }, ... ]   -- e.g. rent, paid from another account;
+                                                     assumed stable month to month (global, not per-month)
 
 users/{uid}/settings/categories        (single doc)
   categories: [ { id, label, special?: "income"|"savings" }, ... ]   -- editable, seeded from §7
+
+users/{uid}/monthlyIncome/{YYYY-MM}
+  salary: number | null,                          -- manual per-month entry; null = use auto-detected
+  fixedIncomes: [ { id, label, amount }, ... ]     -- e.g. a partner's salary that never lands here, per month
 
 users/{uid}/accounts/{accountId}
   provider, consentExpiresAt, lastSyncCursor, bankName
@@ -271,16 +275,25 @@ users/{uid}/accounts/{accountId}
 users/{uid}/transactions/{externalTxId}
   date, amount, currency, merchantRaw, merchantNormalized,
   category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import",
-  confidence, month: "YYYY-MM", accountId
+  confidence, month: "YYYY-MM" (the budget month — independently editable from date, see §8), accountId
 
 users/{uid}/categoryRules/{merchantNormalized}
   category, timesConfirmed, lastUpdated
 
 users/{uid}/dashboards/{YYYY-MM}
-  salary, totalsByCategory: { [categoryId]: amount }, totalExpenses,
+  salary, autoDetectedSalary, salarySource: "manual"|"auto"|"none",
+  totalsByCategory: { [categoryId]: amount }, totalExpenses,
   fixedExpensesTotal, fixedIncomesTotal, savingsGoalTarget, savingsActual,
   moneyLeft, needsReviewCount, updatedAt
 ```
+
+Why `monthlyIncome` is its own per-month collection rather than a field on
+`users/{uid}` (global Settings): salary is exactly the kind of number you
+need to review historically and trust hasn't moved — a global "default
+salary" would let a value you update today silently rewrite what every
+past month's dashboard shows the next time it happens to recompute. Rent
+(`fixedExpenses`) stays global for now since it's assumed stable; revisit
+the same way if that stops being true.
 
 Firestore security rules: every path above scoped to
 `request.auth.uid == uid` **and** the one allow-listed account email —
@@ -310,18 +323,23 @@ after Phase 0 testing:
   as a bar chart.
 - Savings goal progress: target for the month vs amount actually moved to
   "Invest" — a comparison, not a deduction (see below).
-- Fixed monthly items (rent, a partner's contribution, etc. — configured
-  in Settings, never detected from a transaction) shown as their own list
-  so the money-left number is traceable to something other than "trust me".
-- **Money left** = `(salary + Σfixed incomes) − Σ(expenses) − Σfixed
-  expenses` — plainly income minus real spend, where `salary` is the
-  auto-detected "income"-category credit for the month, falling back to
-  your pre-defined default if none was detected (editable in Settings
-  either way — auto-detection should never silently override a number you
-  set yourself without showing it to you first). The savings goal is
-  **not** subtracted here — it's a target you're compared against via the
-  savings meter, not a guaranteed outflow, so it shouldn't shrink a number
-  that's supposed to mean "what's actually left."
+- Income editor, right on the Dashboard, for the month being viewed: a
+  salary field (manual entry, with the auto-detected transaction amount
+  shown as a hint/placeholder if there is one) and an "other income" list
+  (e.g. a partner's salary that never lands in this account) — both are
+  per-month data (`monthlyIncome/{month}`, §6), not a global default, so
+  scrolling back to an old month shows what actually applied then.
+- Fixed monthly expenses (rent etc. — configured in Settings, global,
+  never detected from a transaction) shown as their own list so the
+  money-left number is traceable to something other than "trust me".
+- **Money left** = `(salary + Σother income) − Σ(expenses) − Σfixed
+  expenses` — plainly income minus real spend, where `salary` is your
+  manual entry for the month if you gave one, else the auto-detected
+  "income"-category transaction total, else 0 (flagged on the Dashboard
+  as "not recorded" rather than silently treated as zero). The savings
+  goal is **not** subtracted here — it's a target you're compared against
+  via the savings meter, not a guaranteed outflow, so it shouldn't shrink
+  a number that's supposed to mean "what's actually left."
 - Trend view across the last N months (same rollup collection, just a
   range query) — not built yet, still a Phase 0 gap.
 

@@ -7,59 +7,8 @@ import {
   subscribeCategories,
   subscribeUserSettings,
 } from "../lib/settings";
-import type { CategoryDef, FixedLineItem, SavingsGoal, UserSettings } from "../types";
-
-function FixedItemsEditor({
-  title,
-  hint,
-  items,
-  onChange,
-}: {
-  title: string;
-  hint: string;
-  items: FixedLineItem[];
-  onChange: (items: FixedLineItem[]) => void;
-}) {
-  function update(id: string, patch: Partial<FixedLineItem>) {
-    onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-  }
-  function add() {
-    onChange([...items, { id: `item_${Date.now().toString(36)}`, label: "", amount: 0 }]);
-  }
-  function remove(id: string) {
-    onChange(items.filter((i) => i.id !== id));
-  }
-
-  return (
-    <>
-      <h2>{title}</h2>
-      <p style={{ marginTop: 0, color: "var(--text-secondary)", fontSize: 13 }}>{hint}</p>
-      {items.map((item) => (
-        <div key={item.id} className="tx-row">
-          <input
-            type="text"
-            placeholder="Label (e.g. Rent)"
-            value={item.label}
-            onChange={(e) => update(item.id, { label: e.target.value })}
-            style={{ flex: 1 }}
-          />
-          <input
-            type="number"
-            value={item.amount}
-            onChange={(e) => update(item.id, { amount: Number(e.target.value) })}
-            style={{ width: 110 }}
-          />
-          <button type="button" className="button secondary" style={{ padding: "6px 10px" }} onClick={() => remove(item.id)}>
-            ✕
-          </button>
-        </div>
-      ))}
-      <button type="button" className="button secondary" style={{ marginTop: 10 }} onClick={add}>
-        Add item
-      </button>
-    </>
-  );
-}
+import { FixedItemsEditor } from "../components/FixedItemsEditor";
+import type { CategoryDef, SavingsGoal, UserSettings } from "../types";
 
 export function Settings() {
   const { user, signOut } = useAuth();
@@ -117,16 +66,14 @@ export function Settings() {
     <div className="screen">
       <h1>Settings</h1>
 
+      <p className="empty-state" style={{ padding: "4px 0 16px", textAlign: "left" }}>
+        Salary and any partner income/contribution now live on the <strong>Dashboard</strong>,
+        per month — so scrolling back shows exactly what applied that month, not whatever
+        this page currently says.
+      </p>
+
       <div className="card">
-        <h2>Salary &amp; savings goal</h2>
-        <div className="field">
-          <label>Default salary (used when no "Salary"-category transaction is found this month)</label>
-          <input
-            type="number"
-            value={settings.defaultSalary}
-            onChange={(e) => setSettings({ ...settings, defaultSalary: Number(e.target.value) })}
-          />
-        </div>
+        <h2>Savings goal</h2>
         <div className="field">
           <label>Savings goal type</label>
           <select value={settings.savingsGoal.type} onChange={(e) => updateGoal({ type: e.target.value as SavingsGoal["type"] })}>
@@ -145,19 +92,10 @@ export function Settings() {
 
         <FixedItemsEditor
           title="Fixed monthly expenses"
-          hint="For costs that never show up as a transaction in this account — e.g. rent paid from a different account."
+          hint="For costs that never show up as a transaction in this account — e.g. rent paid from a different account. Assumed stable month to month, unlike income (see Dashboard) — if rent changes, just edit it here."
           items={settings.fixedExpenses}
           onChange={(fixedExpenses) => setSettings({ ...settings, fixedExpenses })}
         />
-
-        <div style={{ marginTop: 20 }}>
-          <FixedItemsEditor
-            title="Fixed monthly incomes"
-            hint="For household income that doesn't land in this account — e.g. a partner's salary or contribution you still want counted."
-            items={settings.fixedIncomes}
-            onChange={(fixedIncomes) => setSettings({ ...settings, fixedIncomes })}
-          />
-        </div>
 
         <button type="button" className="button" style={{ marginTop: 20 }} onClick={handleSaveProfile}>
           Save
