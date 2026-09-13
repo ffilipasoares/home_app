@@ -503,9 +503,25 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       testable before any bank credentials exist, so the riskiest,
       least-verifiable part (a real aggregator connection) isn't on the
       critical path to a working currency merge.
-   2. **You sign up with Enable Banking** (their sandbox, no card) — not
-      something this session can do; needed before step 3 can be built
-      against their real API rather than a guess.
+   2. **You sign up with Enable Banking — done.** Sandbox application
+      created (Account Information + Payment Initiation), redirect URLs
+      registered (`/bank-callback` on both the Hosting URL and
+      `localhost:5173`). The API shape below is confirmed against Enable
+      Banking's own "Quick Start" doc, not just search-inferred:
+      `POST /auth` (body: `access.valid_until`, `aspsp.{name,country}`,
+      `state`, `redirect_url`, `psu_type`) returns a `url` to send the user
+      to; the redirect back carries `?code=...&state=...`; `POST
+      /sessions` with `{code}` returns the session, whose `accounts[]`
+      carry a `uid` used for `GET /accounts/{uid}/balances` and `GET
+      /accounts/{uid}/transactions`. JWT auth: header `kid` = application
+      ID, body `iss`/`aud` fixed strings + `iat`/`exp`, RS256-signed with
+      the app's private key (`scripts/test_enable_banking.py` mirrors this
+      exactly). Not yet confirmed from the quick-start doc alone (to
+      verify empirically against the sandbox before relying on it in the
+      real sync function): the full field shape of each session account
+      (currency, IBAN — needed to tell the EUR pocket from the GBP one),
+      transaction-list pagination, and how a near-expiry consent is
+      detected/renewed.
    3. **Connect flow + daily sync** — a "Connect Revolut" button
       (Settings), the consent redirect, and a scheduled Cloud Function
       (`@scheduler_fn.on_schedule` — not the Cloud Scheduler → Cloud Run
