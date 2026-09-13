@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
-import { subscribeMonthTransactions, updateTransactionCategory } from "../lib/transactions";
+import { subscribeMonthTransactions, updateTransactionCategory, updateTransactionMonth } from "../lib/transactions";
 import { subscribeAvailableMonths } from "../lib/dashboard";
 import { subscribeCategories } from "../lib/settings";
 import { currentMonth } from "../lib/month";
@@ -11,14 +11,18 @@ import type { CategoryDef, Transaction } from "../types";
 function TransactionRow({
   tx,
   categories,
-  onSave,
+  onSaveCategory,
+  onMove,
 }: {
   tx: Transaction;
   categories: CategoryDef[];
-  onSave: (category: string) => void;
+  onSaveCategory: (category: string) => void;
+  onMove: (month: string) => void;
 }) {
   const [category, setCategory] = useState(tx.category ?? "");
-  const dirty = category !== (tx.category ?? "");
+  const [budgetMonth, setBudgetMonth] = useState(tx.month);
+  const categoryDirty = category !== (tx.category ?? "");
+  const monthDirty = budgetMonth !== tx.month;
 
   return (
     <div className="tx-row" style={{ flexWrap: "wrap" }}>
@@ -30,7 +34,7 @@ function TransactionRow({
         <div className="tx-date">{tx.date}</div>
       </div>
       <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>{formatCurrency(tx.amount)}</div>
-      <div style={{ display: "flex", gap: 8, flex: "1 1 100%", marginTop: 4 }}>
+      <div style={{ display: "flex", gap: 8, flex: "1 1 100%", marginTop: 4, flexWrap: "wrap" }}>
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="" disabled>
             Choose category…
@@ -45,12 +49,29 @@ function TransactionRow({
           type="button"
           className="button"
           style={{ padding: "8px 14px" }}
-          disabled={!category || !dirty}
-          onClick={() => onSave(category)}
+          disabled={!category || !categoryDirty}
+          onClick={() => onSaveCategory(category)}
         >
           Save
         </button>
       </div>
+      <details style={{ flex: "1 1 100%", marginTop: 2 }}>
+        <summary style={{ fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
+          Counts toward {tx.month} — move to a different month?
+        </summary>
+        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+          <input type="month" value={budgetMonth} onChange={(e) => setBudgetMonth(e.target.value)} />
+          <button
+            type="button"
+            className="button secondary"
+            style={{ padding: "8px 14px" }}
+            disabled={!monthDirty}
+            onClick={() => onMove(budgetMonth)}
+          >
+            Move
+          </button>
+        </div>
+      </details>
     </div>
   );
 }
@@ -82,7 +103,8 @@ export function Transactions() {
             key={tx.id}
             tx={tx}
             categories={categories}
-            onSave={(category) => updateTransactionCategory(uid, tx.id, category)}
+            onSaveCategory={(category) => updateTransactionCategory(uid, tx.id, category)}
+            onMove={(newMonth) => updateTransactionMonth(uid, tx.id, newMonth)}
           />
         ))}
       </div>

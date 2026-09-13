@@ -68,6 +68,19 @@ export async function updateTransactionCategory(uid: string, txId: string, categ
   await batch.commit();
 }
 
+/**
+ * Moves a transaction to a different budget month than the calendar month
+ * its `date` falls in — e.g. a salary that lands on the 25th but is really
+ * next month's income. `date` (the real transaction date) never changes;
+ * `month` (which dashboard it's summed into) does. The Cloud Function
+ * trigger recomputes both the old and new month, so nothing goes stale.
+ */
+export async function updateTransactionMonth(uid: string, txId: string, month: string): Promise<void> {
+  await writeBatch(db)
+    .set(doc(transactionsCol(uid), txId), { month, updatedAt: Date.now() }, { merge: true })
+    .commit();
+}
+
 /** Bulk-writes imported rows as uncategorized transactions flagged for review. Chunks into multiple batches once past Firestore's per-batch write limit. */
 export async function importTransactions(uid: string, rows: ImportRow[]): Promise<number> {
   let written = 0;
