@@ -23,15 +23,28 @@ function TransactionRow({
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
+  // An AI suggestion pre-fills `category` but leaves needsReview true — Save
+  // should still confirm it in one tap without requiring you to change the
+  // dropdown first just to make it "dirty".
+  const canSaveCategory = !!category && (categoryDirty || tx.needsReview);
 
   return (
     <div className="tx-row" style={{ flexWrap: "wrap" }}>
       <div className="tx-main" style={{ flex: "1 1 100%" }}>
         <div className="tx-merchant">
           {tx.merchantRaw}
-          {tx.needsReview && <span className="badge">needs review</span>}
+          {tx.needsReview && (
+            <span className="badge">
+              {tx.category && tx.source === "auto" ? "confirm suggestion" : "needs review"}
+            </span>
+          )}
         </div>
-        <div className="tx-date">{tx.date}</div>
+        <div className="tx-date">
+          {tx.date}
+          {tx.category && tx.needsReview && tx.confidence !== undefined && (
+            <> · AI guess, {(tx.confidence * 100).toFixed(0)}% confident</>
+          )}
+        </div>
       </div>
       <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>{formatCurrency(tx.amount)}</div>
       <div style={{ display: "flex", gap: 8, flex: "1 1 100%", marginTop: 4, flexWrap: "wrap" }}>
@@ -49,10 +62,10 @@ function TransactionRow({
           type="button"
           className="button"
           style={{ padding: "8px 14px" }}
-          disabled={!category || !categoryDirty}
+          disabled={!canSaveCategory}
           onClick={() => onSaveCategory(category)}
         >
-          Save
+          {tx.needsReview && !categoryDirty && tx.category ? "Confirm" : "Save"}
         </button>
       </div>
       <details style={{ flex: "1 1 100%", marginTop: 2 }}>

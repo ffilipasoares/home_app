@@ -1,7 +1,7 @@
 # Architecture Design — Home Finance Agent
 
-Status: **Phase 0 built and running** (manual CSV import + manual
-categorization; no agent yet). Last updated 2026-09-13.
+Status: **Phase 1 built** (manual CSV import; categorization is now
+automatic — see below). Last updated 2026-09-13.
 
 ## 1. Goal & scope
 
@@ -234,25 +234,38 @@ Idempotency: every transaction is keyed by the aggregator's stable
 external transaction id, so a retried or overlapping run never
 double-counts — a write is always an upsert, never an append.
 
-## 5. Agent tools (ADK)
+## 5. Categorization (built as a direct Gemini call, not an ADK agent)
 
-The pipeline is one ADK agent with these tools; each is a small, testable,
-independently-loggable function — this is what ADK's structure buys you
-over a single monolithic script:
+The original plan (§3.1) was to structure this as an ADK agent even while
+running it outside Agent Engine. In practice, Phase 1 turned out to be one
+bounded call — "pick 1 of N categories for this transaction, with a
+confidence score" — with no multi-step planning, no tool the model
+chooses *whether* to call, and nothing an agent framework's orchestration
+loop would add over calling `@google/genai`'s `generateContent` directly
+from the existing `onTransactionWrite` Cloud Function. Wrapping a single
+structured-output call in ADK's Agent/Tool abstraction would have been
+ceremony, not structure, so `functions/src/categorize.ts` just calls
+Gemini directly, and `functions/src/index.ts` orchestrates the surrounding
+steps in plain code:
 
-| Tool | Purpose |
+| Step | Where |
 |---|---|
-| `fetch_new_transactions(account_id, since_cursor)` | Calls the open banking API (or parses an uploaded CSV/PDF as fallback) |
-| `lookup_category_rule(merchant_normalized)` | Firestore cache lookup — avoids an LLM call for known merchants |
-| `categorize_transaction(transaction, taxonomy)` | Gemini structured-output call → `{category, confidence}` |
-| `save_category_rule(merchant_normalized, category)` | Writes/updates the learned cache when confidence is high |
-| `detect_salary(transactions, predefined_default)` | Heuristic (recurring largest monthly credit against the "income"-special category) with a pre-defined fallback value you set in Settings |
-| `upsert_transactions(transactions)` | Idempotent Firestore batch write |
-| `recompute_dashboard(month)` | Aggregates totals by category, income vs. expenses, fixed items from Settings, savings-goal progress, money left — this exact logic already lives in `functions/src/dashboard.ts` (Phase 0's Cloud Function), so Phase 1 just calls the same function instead of re-implementing it |
+| Cache lookup (`categoryRules/{merchantNormalized}`) — avoids a Gemini call for known merchants | `index.ts` → `autoCategorize` |
+| Gemini structured-output call → `{category, confidence}`, validated against the real category list | `categorize.ts` → `categorizeTransaction` |
+| Cache write — only on a confident fresh guess, so an unconfirmed suggestion never becomes "ground truth" | `index.ts` → `autoCategorize` |
+| Dashboard recompute — unchanged from Phase 0, just called again after a category lands | `dashboard.ts` → `recomputeMonth` |
 
-Structured output (JSON schema / controlled generation) is used for every
-Gemini call — never free-text parsing — so a malformed model response is a
-validation error you can retry or flag, not a silent bad write.
+This isn't a verdict on ADK — it's a verdict on *this* task's shape. A
+future step with real multi-step tool use and a model that has to decide
+what to do next (bank-sync ingestion doing fetch → parse → categorize →
+write as one flow, or the Phase 3 conversational agent) is exactly where
+ADK's structure, tracing, and testability earn their keep again — revisit
+there, not here.
+
+Structured output (JSON schema / controlled generation, via
+`responseSchema` on the Gemini call) is used rather than free-text
+parsing, so a malformed or hallucinated response degrades to "leave this
+transaction for manual review," never a silent bad write.
 
 ## 6. Firestore data model
 
@@ -386,10 +399,11 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    transaction categorization UI), seeded with a CSV export you upload by
    hand. Proves the data model and UI end-to-end with zero bank-integration
    risk.
-2. **Phase 1 — ADK categorization agent, still on manual input.** Build the
-   agent tools (§5) against the same CSV path; validate categorization
-   quality and the learned-rule cache before any bank credentials are in
-   play.
+2. **Phase 1 — automatic categorization, still on manual CSV input.** Built
+   as a direct Gemini call inside the existing `onTransactionWrite` Cloud
+   Function (§5), not wrapped in ADK — see the note there on why. Validates
+   categorization quality and the learned-rule cache before any bank
+   credentials are in play.
 3. **Phase 2 — open banking sync.** Add the aggregator consent flow, the
    daily Cloud Scheduler → Cloud Run Job trigger, and cursor-based
    incremental fetch. This is the step gated on confirming your bank's

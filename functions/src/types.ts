@@ -29,6 +29,13 @@ export type MonthlyIncome = {
   fixedIncomes: FixedLineItem[];
 };
 
+export type CategoryRule = {
+  merchantNormalized: string;
+  category: string;
+  timesConfirmed: number;
+  lastUpdated: number;
+};
+
 export type Transaction = {
   id: string;
   date: string;
