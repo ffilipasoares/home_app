@@ -1,0 +1,1190 @@
+{
+    "accounts": [
+        {
+            "info": {
+                "credit_limit": null,
+                "all_account_ids": [
+                    {
+                        "scheme_name": "BBAN",
+                        "identification": "325000123456789012",
+                        "issuer": null
+                    },
+                    {
+                        "scheme_name": "IBAN",
+                        "identification": "LT27325000123456789012",
+                        "issuer": null
+                    }
+                ],
+                "account_servicer": null,
+                "currency": "EUR",
+                "psu_status": "Co-account Holder",
+                "linked_account": null,
+                "cash_account_type": "CACC",
+                "usage": "PRIV",
+                "product": null,
+                "name": "Filipa Soares",
+                "details": "Joint EUR",
+                "resource_id": "523d3e29-a657-4047-9515-1b380b3eee23",
+                "account_id": {
+                    "other": {
+                        "scheme_name": "BBAN",
+                        "issuer": null,
+                        "identification": "325000123456789012"
+                    },
+                    "iban": "LT27325000123456789012"
+                }
+            },
+            "transactions": [
+                {
+                    "entry_reference": "RVL0000001",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "2450.00"
+                    },
+                    "creditor": null,
+                    "creditor_account": null,
+                    "debtor": {
+                        "name": "ACME PORTUGAL LDA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "ReceivedCreditTransfers",
+                        "sub_code": "DomesticCreditTransfer"
+                    },
+                    "credit_debit_indicator": "CRDT",
+                    "status": "BOOK",
+                    "booking_date": "2026-08-26",
+                    "value_date": "2026-08-26",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "Vencimento Agosto 2026"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000002",
+                    "merchant_category_code": "5411",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "64.37"
+                    },
+                    "creditor": {
+                        "name": "CONTINENTE LISBOA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-08-28",
+                    "value_date": "2026-08-28",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "CONTINENTE LISBOA"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000003",
+                    "merchant_category_code": "5812",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "18.30"
+                    },
+                    "creditor": {
+                        "name": "UBER EATS",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-08-30",
+                    "value_date": "2026-08-30",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "UBER EATS LISBOA 4521"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000004",
+                    "merchant_category_code": "4899",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "12.99"
+                    },
+                    "creditor": {
+                        "name": "NETFLIX.COM",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-01",
+                    "value_date": "2026-09-01",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "NETFLIX.COM"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000005",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "41.20"
+                    },
+                    "creditor": {
+                        "name": "EDP COMERCIAL",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "ReceivedDirectDebits",
+                        "sub_code": "DirectDebitPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-02",
+                    "value_date": "2026-09-02",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "EDP COMERCIAL - ELECTRICIDADE"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000006",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "39.99"
+                    },
+                    "creditor": {
+                        "name": "MEO SA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "ReceivedDirectDebits",
+                        "sub_code": "DirectDebitPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-03",
+                    "value_date": "2026-09-03",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "MEO FIBRA + TV"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000007",
+                    "merchant_category_code": "5411",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "52.85"
+                    },
+                    "creditor": {
+                        "name": "PINGO DOCE",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-04",
+                    "value_date": "2026-09-04",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "PINGO DOCE ALVALADE"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000008",
+                    "merchant_category_code": "4121",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "9.40"
+                    },
+                    "creditor": {
+                        "name": "UBER",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-05",
+                    "value_date": "2026-09-05",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "UBER *TRIP LISBOA"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000009",
+                    "merchant_category_code": "5912",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "8.50"
+                    },
+                    "creditor": {
+                        "name": "FARMACIA SAO BENTO",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-07",
+                    "value_date": "2026-09-07",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "FARMACIA SAO BENTO"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000010",
+                    "merchant_category_code": "5541",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "55.10"
+                    },
+                    "creditor": {
+                        "name": "GALP ENERGIA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-09",
+                    "value_date": "2026-09-09",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "GALP 2ª CIRCULAR"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000011",
+                    "merchant_category_code": "5815",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "10.99"
+                    },
+                    "creditor": {
+                        "name": "SPOTIFY",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-10",
+                    "value_date": "2026-09-10",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "SPOTIFY P2B4C1"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000012",
+                    "merchant_category_code": "5812",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "27.80"
+                    },
+                    "creditor": {
+                        "name": "TASCA DO CHICO",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-12",
+                    "value_date": "2026-09-12",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "TASCA DO CHICO LISBOA"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000013",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "300.00"
+                    },
+                    "creditor": {
+                        "name": "TRADING 212",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "IssuedCreditTransfers",
+                        "sub_code": "DomesticCreditTransfer"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-14",
+                    "value_date": "2026-09-14",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "Transfer to Trading 212 - investimento"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000014",
+                    "merchant_category_code": "5411",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "71.45"
+                    },
+                    "creditor": {
+                        "name": "CONTINENTE LISBOA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-15",
+                    "value_date": "2026-09-15",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "CONTINENTE LISBOA"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000015",
+                    "merchant_category_code": "5732",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "129.99"
+                    },
+                    "creditor": {
+                        "name": "WORTEN",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-17",
+                    "value_date": "2026-09-17",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "WORTEN COLOMBO"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000016",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "200.00"
+                    },
+                    "creditor": {
+                        "name": "Revolut",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "IssuedCreditTransfers",
+                        "sub_code": "DomesticCreditTransfer"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-18",
+                    "value_date": "2026-09-18",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "Exchanged to GBP"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000017",
+                    "merchant_category_code": "7832",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "22.50"
+                    },
+                    "creditor": {
+                        "name": "CINEMA NOS",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-20",
+                    "value_date": "2026-09-20",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "CINEMA NOS AMOREIRAS"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000018",
+                    "merchant_category_code": "4784",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "15.60"
+                    },
+                    "creditor": {
+                        "name": "VIA VERDE",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-22",
+                    "value_date": "2026-09-22",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "VIA VERDE PORTUGAL"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000019",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "2450.00"
+                    },
+                    "creditor": null,
+                    "creditor_account": null,
+                    "debtor": {
+                        "name": "ACME PORTUGAL LDA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "ReceivedCreditTransfers",
+                        "sub_code": "DomesticCreditTransfer"
+                    },
+                    "credit_debit_indicator": "CRDT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-25",
+                    "value_date": "2026-09-25",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "Vencimento Setembro 2026"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000020",
+                    "merchant_category_code": "5411",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "58.90"
+                    },
+                    "creditor": {
+                        "name": "PINGO DOCE",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-27",
+                    "value_date": "2026-09-27",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "PINGO DOCE ALVALADE"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000021",
+                    "merchant_category_code": "5812",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "34.00"
+                    },
+                    "creditor": {
+                        "name": "UBER EATS",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-29",
+                    "value_date": "2026-09-29",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "UBER EATS LISBOA 9910"
+                    ]
+                }
+            ]
+        },
+        {
+            "info": {
+                "credit_limit": null,
+                "all_account_ids": [
+                    {
+                        "scheme_name": "BBAN",
+                        "identification": "REVO00997012345678",
+                        "issuer": null
+                    },
+                    {
+                        "scheme_name": "IBAN",
+                        "identification": "GB31REVO00997012345678",
+                        "issuer": null
+                    }
+                ],
+                "account_servicer": null,
+                "currency": "GBP",
+                "psu_status": "Co-account Holder",
+                "linked_account": null,
+                "cash_account_type": "CACC",
+                "usage": "PRIV",
+                "product": null,
+                "name": "Filipa Soares",
+                "details": "Joint GBP",
+                "resource_id": "0c6654f0-98ba-4178-8571-dc717130df7e",
+                "account_id": {
+                    "other": {
+                        "scheme_name": "BBAN",
+                        "issuer": null,
+                        "identification": "REVO00997012345678"
+                    },
+                    "iban": "GB31REVO00997012345678"
+                }
+            },
+            "transactions": [
+                {
+                    "entry_reference": "RVL0000022",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "GBP",
+                        "amount": "172.40"
+                    },
+                    "creditor": null,
+                    "creditor_account": null,
+                    "debtor": {
+                        "name": "Revolut",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "ReceivedCreditTransfers",
+                        "sub_code": "DomesticCreditTransfer"
+                    },
+                    "credit_debit_indicator": "CRDT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-18",
+                    "value_date": "2026-09-18",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "Exchanged from EUR"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000023",
+                    "merchant_category_code": "5814",
+                    "transaction_amount": {
+                        "currency": "GBP",
+                        "amount": "6.85"
+                    },
+                    "creditor": {
+                        "name": "PRET A MANGER",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-19",
+                    "value_date": "2026-09-19",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "PRET A MANGER KINGS CROSS"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000024",
+                    "merchant_category_code": "4111",
+                    "transaction_amount": {
+                        "currency": "GBP",
+                        "amount": "2.80"
+                    },
+                    "creditor": {
+                        "name": "TFL TRAVEL CHARGE",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-19",
+                    "value_date": "2026-09-19",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "TFL TRAVEL CH"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000025",
+                    "merchant_category_code": "5411",
+                    "transaction_amount": {
+                        "currency": "GBP",
+                        "amount": "23.47"
+                    },
+                    "creditor": {
+                        "name": "TESCO STORES",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-20",
+                    "value_date": "2026-09-20",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "TESCO STORES 2041"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000026",
+                    "merchant_category_code": "5999",
+                    "transaction_amount": {
+                        "currency": "GBP",
+                        "amount": "42.00"
+                    },
+                    "creditor": {
+                        "name": "BRITISH MUSEUM SHOP",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-20",
+                    "value_date": "2026-09-20",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "BRITISH MUSEUM"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000027",
+                    "merchant_category_code": "4111",
+                    "transaction_amount": {
+                        "currency": "GBP",
+                        "amount": "5.60"
+                    },
+                    "creditor": {
+                        "name": "TFL TRAVEL CHARGE",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-21",
+                    "value_date": "2026-09-21",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "TFL TRAVEL CH"
+                    ]
+                }
+            ]
+        },
+        {
+            "info": {
+                "credit_limit": null,
+                "all_account_ids": [
+                    {
+                        "scheme_name": "BBAN",
+                        "identification": "325000987654321098",
+                        "issuer": null
+                    },
+                    {
+                        "scheme_name": "IBAN",
+                        "identification": "LT48325000987654321098",
+                        "issuer": null
+                    }
+                ],
+                "account_servicer": null,
+                "currency": "EUR",
+                "psu_status": "Account Holder",
+                "linked_account": null,
+                "cash_account_type": "CACC",
+                "usage": "PRIV",
+                "product": null,
+                "name": "Filipa Soares",
+                "details": "Individual EUR",
+                "resource_id": "218cdbee-7318-4405-bb5d-bb805d722c4c",
+                "account_id": {
+                    "other": {
+                        "scheme_name": "BBAN",
+                        "issuer": null,
+                        "identification": "325000987654321098"
+                    },
+                    "iban": "LT48325000987654321098"
+                }
+            },
+            "transactions": [
+                {
+                    "entry_reference": "RVL0000028",
+                    "merchant_category_code": "5651",
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "45.00"
+                    },
+                    "creditor": {
+                        "name": "ZARA",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "creditor_account": null,
+                    "debtor": null,
+                    "debtor_account": {
+                        "iban": null,
+                        "other": {
+                            "identification": "537410XXXXXX8812",
+                            "scheme_name": "CPAN",
+                            "issuer": null
+                        }
+                    },
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "CustomerCardTransactions",
+                        "sub_code": "CreditCardPayment"
+                    },
+                    "credit_debit_indicator": "DBIT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-08",
+                    "value_date": "2026-09-08",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "ZARA CHIADO"
+                    ]
+                },
+                {
+                    "entry_reference": "RVL0000029",
+                    "merchant_category_code": null,
+                    "transaction_amount": {
+                        "currency": "EUR",
+                        "amount": "120.00"
+                    },
+                    "creditor": null,
+                    "creditor_account": null,
+                    "debtor": {
+                        "name": "Filipa Soares",
+                        "postal_address": null,
+                        "organisation_id": null,
+                        "private_id": null
+                    },
+                    "debtor_account": null,
+                    "bank_transaction_code": {
+                        "description": null,
+                        "code": "ReceivedCreditTransfers",
+                        "sub_code": "DomesticCreditTransfer"
+                    },
+                    "credit_debit_indicator": "CRDT",
+                    "status": "BOOK",
+                    "booking_date": "2026-09-16",
+                    "value_date": "2026-09-16",
+                    "transaction_date": null,
+                    "balance_after_transaction": null,
+                    "reference_number": null,
+                    "remittance_information": [
+                        "Transferencia pessoal"
+                    ]
+                }
+            ]
+        }
+    ]
+}
