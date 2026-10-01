@@ -65,6 +65,16 @@ from datetime import datetime, timedelta, timezone
 import jwt as pyjwt
 import requests
 
+# Two unrelated PyPI packages ("jwt" and "python-jwt") also install a
+# module named `jwt`, and either one shadows PyJWT, which is what this
+# script needs. Fail with the fix instead of a bare AttributeError.
+if not hasattr(pyjwt, "encode"):
+    sys.exit(
+        f"The `jwt` module loaded from {getattr(pyjwt, '__file__', '?')} is not PyJWT.\n"
+        "Fix: python3 -m pip uninstall -y jwt python-jwt && "
+        'python3 -m pip install --force-reinstall "PyJWT[crypto]"'
+    )
+
 API_BASE = "https://api.enablebanking.com"
 
 
