@@ -12,3 +12,7 @@ functions/__pycache__/
 .env.local
 .DS_Store
 *.log
+
+# Private keys (e.g. the Enable Banking application key) must never be committed
+*.pem
+*.key
