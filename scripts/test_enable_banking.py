@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "PyJWT[crypto]>=2.9.0",
+#     "requests>=2.31",
+# ]
+# ///
 """Dev-only script to exercise the real Enable Banking sandbox API directly
 — no Firestore, no deployed Cloud Function, no UI. Mirrors the flow from
 Enable Banking's own "Quick Start" doc so we can see the *actual* JSON
@@ -14,9 +21,11 @@ Your private key never needs to be pasted anywhere (not into chat, not
 into this file) — it's read from a local path you point at with an env
 var.
 
-Setup (once):
-    cd functions && source venv/bin/activate && cd ..
-    pip install requests
+Setup: just have uv installed (https://docs.astral.sh/uv/). `uv run`
+reads the dependency block at the top of this file and runs the script in
+its own throwaway environment with exactly those packages, so whatever is
+in your conda/micromamba/venv can't shadow or break them. No venv to
+activate, no pip install.
 
 Env vars (every command needs the first two):
     ENABLE_BANKING_APP_ID           your application's ID (the console's
@@ -36,23 +45,23 @@ complete a (fake, in sandbox) bank login in a browser in between:
 
     # 1. See what banks/ASPSPs are available to connect to in this
     #    environment (sandbox = fake test banks, not real Revolut).
-    python3 scripts/test_enable_banking.py list-banks --country FI
+    uv run scripts/test_enable_banking.py list-banks --country FI
 
     # 2. Start a connection to one of them. Prints a URL — open it in a
     #    browser and complete the (fake) login/consent. It redirects you
     #    to ENABLE_BANKING_REDIRECT_URL with ?code=...&state=... in the
     #    query string — copy the `code` value out of that URL.
-    python3 scripts/test_enable_banking.py connect --bank "Mock ASPSP" --country FI
+    uv run scripts/test_enable_banking.py connect --bank "Mock ASPSP" --country FI
 
     # 3. Exchange that code for a session — this is what actually proves
     #    the consent worked, and shows the real shape of the accounts list
     #    (uid, currency, IBAN, etc. — this is the part the quick-start PDF
     #    doesn't fully document, so this is us finding out for real).
-    python3 scripts/test_enable_banking.py exchange --code PASTE_CODE_HERE
+    uv run scripts/test_enable_banking.py exchange --code PASTE_CODE_HERE
 
     # 4. Pull balances + transactions for one of the account uids step 3
     #    printed, to see the real transaction field shapes.
-    python3 scripts/test_enable_banking.py fetch --account PASTE_ACCOUNT_UID_HERE
+    uv run scripts/test_enable_banking.py fetch --account PASTE_ACCOUNT_UID_HERE
 """
 
 import argparse
@@ -71,8 +80,8 @@ import requests
 if not hasattr(pyjwt, "encode"):
     sys.exit(
         f"The `jwt` module loaded from {getattr(pyjwt, '__file__', '?')} is not PyJWT.\n"
-        "Fix: python3 -m pip uninstall -y jwt python-jwt && "
-        'python3 -m pip install --force-reinstall "PyJWT[crypto]"'
+        "Fix: run it with `uv run scripts/test_enable_banking.py ...`, which installs "
+        "the right packages in an isolated environment."
     )
 
 API_BASE = "https://api.enablebanking.com"
