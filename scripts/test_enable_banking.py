@@ -62,6 +62,11 @@ complete a (fake, in sandbox) bank login in a browser in between:
     # 4. Pull balances + transactions for one of the account uids step 3
     #    printed, to see the real transaction field shapes.
     uv run scripts/test_enable_banking.py fetch --account PASTE_ACCOUNT_UID_HERE
+
+With a real bank (a production application), add --redact to `exchange`
+and `fetch` before sharing their output anywhere: names, IBANs, amounts
+and free text are replaced with placeholders, while the structure, codes,
+currencies and dates stay visible.
 """
 
 import argparse
@@ -108,12 +113,45 @@ def _auth_headers() -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _pretty(resp: requests.Response) -> None:
+# Values under these keys are codes, dates or currencies, never personal,
+# so --redact keeps them. Everything else (names, IBANs, amounts, ids,
+# free-text remittance info) is replaced with a placeholder.
+SAFE_KEYS = {
+    "currency", "credit_debit_indicator", "status", "balance_type",
+    "cash_account_type", "usage", "scheme_name", "code", "sub_code",
+    "psu_status", "psu_type", "product", "merchant_category_code",
+    "booking_date", "value_date", "transaction_date", "reference_date",
+    "valid_until", "country",
+}
+REDACTED_TRANSACTIONS_SHOWN = 5
+
+
+def _redact(value, key=None):
+    if isinstance(value, dict):
+        return {k: _redact(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact(v, key) for v in value]
+    if value is None or isinstance(value, bool) or key in SAFE_KEYS:
+        return value
+    if isinstance(value, str):
+        return f"<redacted, {len(value)} chars>"
+    return f"<redacted {type(value).__name__}>"
+
+
+def _pretty(resp: requests.Response, redact: bool = False) -> None:
     print(f"-> {resp.status_code} {resp.reason}")
     try:
-        print(json.dumps(resp.json(), indent=2))
+        data = resp.json()
     except ValueError:
         print(resp.text)
+        return
+    if redact:
+        txs = data.get("transactions") if isinstance(data, dict) else None
+        if isinstance(txs, list) and len(txs) > REDACTED_TRANSACTIONS_SHOWN:
+            data = {**data, "transactions": txs[:REDACTED_TRANSACTIONS_SHOWN]}
+            print(f"(showing {REDACTED_TRANSACTIONS_SHOWN} of {len(txs)} transactions)")
+        data = _redact(data)
+    print(json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def cmd_list_banks(args: argparse.Namespace) -> None:
@@ -143,20 +181,23 @@ def cmd_connect(args: argparse.Namespace) -> None:
 
 def cmd_exchange(args: argparse.Namespace) -> None:
     r = requests.post(f"{API_BASE}/sessions", json={"code": args.code}, headers=_auth_headers())
-    _pretty(r)
+    _pretty(r, args.redact)
     if r.ok:
         accounts = r.json().get("accounts", [])
-        print(f"\n{len(accounts)} account(s) in this session:")
+        # Printed unredacted even with --redact: you need the uid for
+        # `fetch`, and it's useless without your private key. No need to
+        # paste this part anywhere.
+        print(f"\n{len(accounts)} account(s) in this session (for your own use with `fetch`):")
         for acc in accounts:
-            print(f"  uid={acc.get('uid')}")
+            print(f"  uid={acc.get('uid')}  currency={acc.get('currency')}")
 
 
 def cmd_fetch(args: argparse.Namespace) -> None:
     headers = _auth_headers()
     print("Balances:")
-    _pretty(requests.get(f"{API_BASE}/accounts/{args.account}/balances", headers=headers))
+    _pretty(requests.get(f"{API_BASE}/accounts/{args.account}/balances", headers=headers), args.redact)
     print("\nTransactions:")
-    _pretty(requests.get(f"{API_BASE}/accounts/{args.account}/transactions", headers=headers))
+    _pretty(requests.get(f"{API_BASE}/accounts/{args.account}/transactions", headers=headers), args.redact)
 
 
 def main() -> None:
@@ -179,6 +220,10 @@ def main() -> None:
     p_fetch = sub.add_parser("fetch", help="Fetch balances + transactions for one account uid")
     p_fetch.add_argument("--account", required=True)
     p_fetch.set_defaults(func=cmd_fetch)
+
+    redact_help = "Hide names, IBANs, amounts and free text (use with a real bank before sharing the output)"
+    for p in (p_exchange, p_fetch):
+        p.add_argument("--redact", action="store_true", help=redact_help)
 
     args = parser.parse_args()
     args.func(args)
