@@ -100,7 +100,10 @@ class FakeDB:
 
 db = FakeDB()
 bank_sync.firestore.client = lambda: db
-bank_sync.rate_to_home_currency = lambda cur, d: 1.17 if cur == "GBP" else None
+import fx  # noqa: E402
+
+# 1 GBP = 1.17 EUR; the inverse for EUR -> GBP.
+fx.get_rate = lambda base, quote, d: 1.0 if base == quote else (1.17 if (base, quote) == ("GBP", "EUR") else 1 / 1.17)
 
 
 # --- Revolut-shaped transactions -------------------------------------------
@@ -217,8 +220,8 @@ check("holder names never stored", HOLDERS not in str(t))
 check("EXCHANGE marked internal, not reviewed", by_ref["e3"]["internalTransfer"] and not by_ref["e3"]["needsReview"])
 check("GBP EXCHANGE marked internal", by_ref["g2"]["internalTransfer"])
 check("normal tx needs categorizing", by_ref["e1"]["needsReview"] and by_ref["e1"]["category"] is None)
-check("GBP amountHome converted", by_ref["g1"]["amountHome"] == round(-6.85 * 1.17, 2))
-check("EUR has no amountHome", "amountHome" not in by_ref["e1"])
+check("GBP transaction: exact GBP, EUR converted unrounded", by_ref["g1"]["amountIn"] == {"GBP": -6.85, "EUR": -6.85 * 1.17})
+check("EUR transaction: exact EUR, GBP converted unrounded", by_ref["e1"]["amountIn"] == {"EUR": -12.5, "GBP": -12.5 / 1.17})
 check("month from date", by_ref["g1"]["month"] == "2026-10")
 check("merchantNormalized", by_ref["e1"]["merchantNormalized"] == "PINGO DOCE ALVALADE")
 eur_acc = next(a for a in accounts.values() if a["currency"] == "EUR")

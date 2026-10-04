@@ -1,7 +1,7 @@
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { DEFAULT_CATEGORIES } from "./categories";
-import type { CategoryDef, UserSettings } from "../types";
+import type { CategoryDef, DisplayCurrency, UserSettings } from "../types";
 
 const DEFAULT_SETTINGS: UserSettings = {
   savingsGoal: { type: "fixed", value: 0 },
@@ -47,6 +47,10 @@ export function subscribeUserSettings(uid: string, cb: (settings: UserSettings) 
     (snap) => cb(withDefaults(snap.data() as Partial<UserSettings> | undefined)),
     (err) => console.error("subscribeUserSettings failed", err),
   );
+}
+
+export async function saveDisplayCurrency(uid: string, displayCurrency: DisplayCurrency): Promise<void> {
+  await setDoc(userRef(uid), { displayCurrency }, { merge: true });
 }
 
 export async function saveUserSettings(uid: string, settings: UserSettings): Promise<void> {

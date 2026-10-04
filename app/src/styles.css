@@ -348,3 +348,27 @@ table.import-preview td {
 .table-scroll {
   overflow-x: auto;
 }
+
+/* ---------- Currency switch (Dashboard) ---------- */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.segmented button {
+  font: inherit;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--series-1);
+  color: white;
+}

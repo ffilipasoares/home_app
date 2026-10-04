@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Categorizes every transaction still waiting for a category, and keeps
-going until none are left. Then gives every foreign-currency (GBP)
-transaction its EUR amount if it's missing one, and recalculates every
+going until none are left. Then gives every transaction its amount in
+both EUR and GBP if it's missing one, and recalculates every
 month's dashboard so the totals match. For catching up once (e.g. after
 the first bank import); day to day, each transaction is categorized as it
 arrives and the nightly job retries any failure.
@@ -54,7 +54,7 @@ def run() -> None:
                 print(f"[{uid}] Stopping: nothing could be categorized this pass. Last error: {result['lastError']}")
                 break
 
-        print(f"[{uid}] EUR amounts for foreign-currency transactions: {main._fill_missing_home_amounts(uid)}")
+        print(f"[{uid}] EUR/GBP amounts: {main._fill_missing_display_amounts(uid)}")
         months = sorted(
             {
                 (doc.to_dict() or {}).get("month")

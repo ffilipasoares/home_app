@@ -40,7 +40,7 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from enable_banking import ASPSP_NAME, Client, EnableBankingError
-from fx import HOME_CURRENCY, rate_to_home_currency
+from fx import amounts_in
 from merchant import normalize_merchant
 from schema import Transaction
 
@@ -109,7 +109,7 @@ def transaction_id(acc_key: str, raw: dict) -> str:
 def map_transaction(raw: dict, acc_key: str, now_ms: int) -> Transaction | None:
     """Turns one Enable Banking transaction into this app's Transaction,
     or None if it shouldn't be imported (yet). Pure: no I/O, so it's
-    unit-testable against sample data. amountHome is added by the caller."""
+    unit-testable against sample data. amountIn is added by the caller."""
     if raw.get("status") != "BOOK":
         return None
     tx_date = raw.get("booking_date") or raw.get("value_date") or raw.get("transaction_date")
@@ -276,18 +276,11 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
     existing = _existing_ids(tx_col, [tx["id"] for tx in mapped])
     new = [tx for tx in mapped if tx["id"] not in existing]
 
-    rates: dict[tuple[str, str], float | None] = {}
     for tx in new:
-        if tx["currency"] == HOME_CURRENCY:
-            continue
-        rate_key = (tx["currency"], tx["date"])
-        if rate_key not in rates:
-            rates[rate_key] = rate_to_home_currency(*rate_key)
-        rate = rates[rate_key]
-        if rate is not None:
-            # Without amountHome the dashboard counts it as needing review
-            # instead of mixing an unconverted amount into a EUR total.
-            tx["amountHome"] = round(tx["amount"] * rate, 2)
+        # The amount in every display currency (EUR and GBP), at this
+        # transaction's own date's rate (fx.py caches one lookup per
+        # currency and date). Any that fails is filled in later by main.py.
+        tx["amountIn"] = amounts_in(tx["amount"], tx["currency"], tx["date"])
 
     for i in range(0, len(new), _BATCH_LIMIT):
         batch = db.batch()

@@ -7,11 +7,12 @@ import {
   updateTransactionMonth,
 } from "../lib/transactions";
 import { subscribeAvailableMonths } from "../lib/dashboard";
-import { subscribeCategories } from "../lib/settings";
+import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { currentMonth } from "../lib/month";
 import { MonthPicker } from "../components/MonthPicker";
 import { formatCurrency } from "../lib/format";
-import type { CategoryDef, Transaction } from "../types";
+import { ENTRY_CURRENCY } from "../types";
+import type { CategoryDef, DisplayCurrency, Transaction } from "../types";
 
 // Matches CONFIDENCE_THRESHOLD in functions/categorize.py: below it the
 // AI's category is still applied, but marked so you know to double-check.
@@ -46,13 +47,17 @@ function TransactionRow({
   onSaveCategory,
   onMove,
   onDelete,
+  displayCurrency,
 }: {
   tx: Transaction;
   categories: CategoryDef[];
   onSaveCategory: (category: string) => void;
   onMove: (month: string) => void;
   onDelete: () => void;
+  displayCurrency: DisplayCurrency;
 }) {
+  // The amount in the currency chosen on the Dashboard, at this transaction's own date's rate.
+  const shownAmount = tx.amountIn?.[displayCurrency] ?? (displayCurrency === "EUR" ? tx.amountHome : undefined);
   // Needs-review rows open ready to act on; an already-confirmed
   // transaction stays a quiet, compact summary line until you ask to
   // edit it — no controls competing for attention on every single row.
@@ -94,9 +99,9 @@ function TransactionRow({
       </div>
       <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>
         {formatCurrency(tx.amount, tx.currency)}
-        {tx.amountHome !== undefined && tx.currency !== "EUR" && (
+        {tx.currency !== displayCurrency && (
           <div style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)" }}>
-            → {formatCurrency(tx.amountHome)}
+            {shownAmount !== undefined ? <>→ {formatCurrency(shownAmount, displayCurrency)}</> : <>{displayCurrency} pending</>}
           </div>
         )}
       </div>
@@ -171,6 +176,8 @@ export function Transactions() {
   useEffect(() => subscribeAvailableMonths(uid, setAvailableMonths), [uid]);
   useEffect(() => subscribeMonthTransactions(uid, month, setTransactions), [uid, month]);
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>(ENTRY_CURRENCY);
+  useEffect(() => subscribeUserSettings(uid, (s) => setDisplayCurrency(s.displayCurrency ?? ENTRY_CURRENCY)), [uid]);
 
   return (
     <div className="screen">
@@ -189,6 +196,7 @@ export function Transactions() {
             key={tx.id}
             tx={tx}
             categories={categories}
+            displayCurrency={displayCurrency}
             onSaveCategory={(category) => updateTransactionCategory(uid, tx.id, category)}
             onMove={(newMonth) => updateTransactionMonth(uid, tx.id, newMonth)}
             onDelete={() => deleteTransaction(uid, tx.id)}

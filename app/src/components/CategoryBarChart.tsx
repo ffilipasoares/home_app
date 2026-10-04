@@ -10,7 +10,7 @@ type Row = { label: string; value: number };
  * point). Sorted descending; value labeled at the bar's tip; a table-view
  * toggle is the accessibility twin required for every chart.
  */
-export function CategoryBarChart({ rows }: { rows: Row[] }) {
+export function CategoryBarChart({ rows, currency = "EUR" }: { rows: Row[]; currency?: string }) {
   const [asTable, setAsTable] = useState(false);
   const sorted = [...rows].filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
   const max = Math.max(1, ...sorted.map((r) => r.value));
@@ -43,7 +43,7 @@ export function CategoryBarChart({ rows }: { rows: Row[] }) {
               {sorted.map((row) => (
                 <tr key={row.label}>
                   <td>{row.label}</td>
-                  <td>{formatCurrency(row.value)}</td>
+                  <td>{formatCurrency(row.value, currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -67,7 +67,7 @@ export function CategoryBarChart({ rows }: { rows: Row[] }) {
                   }}
                 />
               </div>
-              <div className="bar-value">{formatCurrency(row.value)}</div>
+              <div className="bar-value">{formatCurrency(row.value, currency)}</div>
             </div>
           ))}
         </div>

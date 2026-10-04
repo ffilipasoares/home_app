@@ -23,9 +23,17 @@ export type FixedLineItem = {
   amount: number;
 };
 
+/** The currencies the dashboard can be shown in (functions/fx.py, DISPLAY_CURRENCIES). */
+export const DISPLAY_CURRENCIES = ["EUR", "GBP"] as const;
+export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
+/** Salaries, fixed expenses and the savings goal are entered in this currency. */
+export const ENTRY_CURRENCY: DisplayCurrency = "EUR";
+
 export type UserSettings = {
   savingsGoal: SavingsGoal;
   fixedExpenses: FixedLineItem[];
+  /** Which currency the Dashboard shows; remembered across devices. */
+  displayCurrency?: DisplayCurrency;
 };
 
 /**
@@ -68,6 +76,8 @@ export type Transaction = {
    * currency transaction, written by whatever created it.
    */
   amountHome?: number;
+  /** Amount in each display currency at the rate for this transaction's date, unrounded; its own currency as-is. */
+  amountIn?: Partial<Record<DisplayCurrency, number>>;
   merchantRaw: string;
   merchantNormalized: string;
   category: string | null;
@@ -120,8 +130,9 @@ export type CategoryRule = {
   lastUpdated: number;
 };
 
-export type DashboardDoc = {
-  month: string; // YYYY-MM
+/** Every dashboard figure in one display currency (functions/dashboard.py). */
+export type DashboardView = {
+  currency: DisplayCurrency;
   /** The figure actually used in the math: the manual entry if set, else autoDetectedFilipaSalary. */
   filipaSalary: number;
   /** Always the sum of "income"-special-category transactions this month, regardless of any manual entry — shown as a hint on the Dashboard's Filipa's Salary input. */
@@ -135,9 +146,18 @@ export type DashboardDoc = {
   savingsGoalTarget: number;
   savingsActual: number;
   moneyLeft: number;
+  /** Categorized transactions not converted into this currency yet, so not in its totals. */
+  unconvertedCount: number;
+  /** ENTRY_CURRENCY -> this currency rate used for salaries, rent and the goal; null if it couldn't be looked up (they count as 0 then). */
+  manualRate: number | null;
+  manualRateDate: string;
+};
+
+export type DashboardDoc = Partial<Omit<DashboardView, "currency" | "manualRate" | "manualRateDate">> & {
+  month: string; // YYYY-MM
   /** Transactions without a category yet. */
   needsReviewCount: number;
-  /** Categorized foreign-currency (GBP) transactions whose EUR amount isn't known yet, so they're not in the totals. Absent on dashboards computed before this existed. */
-  unconvertedCount?: number;
+  /** One per display currency. Absent on dashboards computed before multi-currency views. */
+  views?: Partial<Record<DisplayCurrency, DashboardView>>;
   updatedAt: number;
 };

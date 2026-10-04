@@ -54,7 +54,12 @@ class Transaction(TypedDict, total=False):
     month: str  # YYYY-MM — the budget month, independently editable from date
     amount: float  # signed: negative = money out, positive = money in, in `currency`
     currency: str
-    # amount converted to HOME_CURRENCY (fx.py) — this is what dashboard
+    # Amount in every display currency (fx.DISPLAY_CURRENCIES, EUR and
+    # GBP), each at the rate for this transaction's date, unrounded; its own
+    # currency is included as-is. The dashboard sums these per currency.
+    amountIn: dict[str, float]
+    # Legacy (before amountIn): amount converted to EUR. Still read as the
+    # EUR amount if amountIn has none. Original note: amount converted to HOME_CURRENCY (fx.py) — this is what dashboard
     # totals actually sum, so a multi-currency account merges into one
     # figure. Absent means "not converted yet"; dashboard.py's fallback
     # (§ recompute_month) treats a same-currency transaction as already
@@ -98,8 +103,10 @@ class AccountLink(TypedDict, total=False):
     lastImportedCount: int
 
 
-class DashboardDoc(TypedDict):
-    month: str
+class DashboardView(TypedDict):
+    """Every dashboard figure in one display currency (see dashboard.py)."""
+
+    currency: str
     filipaSalary: float
     autoDetectedFilipaSalary: float
     filipaSalarySource: Literal["manual", "auto", "none"]
@@ -110,6 +117,18 @@ class DashboardDoc(TypedDict):
     savingsGoalTarget: float
     savingsActual: float
     moneyLeft: float
+    unconvertedCount: int  # categorized transactions not converted into this currency yet
+    # HOME_CURRENCY -> currency rate used for the hand-entered values
+    # (salaries, fixed expenses, savings goal); None if it couldn't be
+    # looked up, in which case they count as 0 in this view.
+    manualRate: float | None
+    manualRateDate: str
+
+
+class DashboardDoc(TypedDict, total=False):
+    month: str
     needsReviewCount: int  # transactions without a category yet
-    unconvertedCount: int  # categorized foreign-currency transactions still missing amountHome
+    views: dict[str, DashboardView]  # one per display currency
     updatedAt: int
+    # Plus the HOME_CURRENCY view's fields repeated at the top level, for
+    # app versions from before `views`.

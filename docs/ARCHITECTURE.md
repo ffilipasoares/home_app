@@ -348,7 +348,7 @@ bankAuthStates/{state}                       (server-only: no security rule)
   uid, createdAt          -- one-time state for an in-flight consent, 30 min
 
 users/{uid}/transactions/{externalTxId}
-  date, amount, currency, amountHome?, merchantRaw, merchantNormalized,
+  date, amount, currency, amountIn: {EUR, GBP} (amountHome? legacy), merchantRaw, merchantNormalized,
   category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import"|"bank-sync",
   confidence, month: "YYYY-MM" (the budget month — independently editable
   from date, either by hand or automatically, see §8), accountId,
@@ -380,17 +380,22 @@ always a manual number, since there's nothing to detect. Displaying them
 side by side on the Dashboard (not "salary" plus a generic list) matches
 that reality directly instead of modeling it as a list with one item.
 
-**`amountHome`** exists for merging a multi-currency account (a Revolut
-login holding both EUR and GBP) into one figure: `functions/dashboard.py`
-sums `amountHome`, not `amount`, for every total. A same-currency
-transaction needs no conversion at all — `amountHome` is only ever
-persisted for a genuinely foreign-currency one (converted via
-`functions/fx.py`, the free keyless [Frankfurter API](https://frankfurter.dev/),
-ECB daily reference rates), written by whatever created that transaction.
-One missing on a foreign-currency transaction is treated the same as
-`needsReview` — excluded from totals rather than silently mixed in
-unconverted — never silently defaulted to zero or treated as already
-converted.
+**`amountIn`** lets the Dashboard show everything in **EUR or GBP**
+(a € / £ switch, remembered as `displayCurrency` in the user's settings).
+Every transaction stores its amount in each display currency
+(`fx.DISPLAY_CURRENCIES`), converted at the ECB rate for its own date via
+`functions/fx.py` (the free, keyless [Frankfurter API](https://frankfurter.dev/)),
+**unrounded**; its own currency is kept as-is, so a GBP purchase is exact
+in the GBP view and a EUR purchase exact in the EUR view. The app shows
+every amount with cents. `functions/dashboard.py` computes the whole
+dashboard once per currency into `views`. Salaries, fixed expenses and the
+savings goal are entered in EUR and converted for the GBP view at one rate
+per month (its last day, or today for the current month), which the
+Dashboard states. A transaction not yet converted into a currency is left
+out of that currency's totals and counted as `unconvertedCount`, never
+defaulted to zero; `main.py` fills the amount in on the next write and the
+nightly job retries. The older `amountHome` (EUR only) is still read as the
+EUR amount.
 
 Firestore security rules: every path above scoped to
 `request.auth.uid == uid` **and** the one allow-listed account email —

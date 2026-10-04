@@ -48,7 +48,7 @@ from categorize import CONFIDENCE_THRESHOLD, CategorizationError, categorize_tra
 from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
 from enable_banking import Client, EnableBankingError
-from fx import HOME_CURRENCY, rate_to_home_currency
+from fx import amounts_in, missing_display_currencies
 from schema import CategoryDef, Transaction
 
 firebase_admin.initialize_app()
@@ -158,36 +158,40 @@ def _categorize_safely(uid: str, tx_id: str, tx: Transaction) -> bool:
         return False
 
 
-def _ensure_home_amount(uid: str, tx_id: str, tx: dict) -> bool:
-    """Gives a foreign-currency transaction its EUR amount (amountHome) if
-    it doesn't have one yet, e.g. because the exchange-rate lookup failed
-    during the bank sync. Returns True if it wrote one. Without it, the
-    dashboard can't include the transaction in any total."""
-    if tx.get("amountHome") is not None or tx.get("currency", HOME_CURRENCY) == HOME_CURRENCY:
+def _ensure_display_amounts(uid: str, tx_id: str, tx: dict) -> bool:
+    """Gives a transaction its amount in every display currency (EUR and
+    GBP, `amountIn`) if any is missing: older transactions, CSV imports, or
+    a rate lookup that failed during the bank sync. Returns True if it
+    wrote anything. Without them, the dashboard leaves the transaction out
+    of that currency's totals."""
+    if not tx.get("date") or not missing_display_currencies(tx):
         return False
-    rate = rate_to_home_currency(tx["currency"], tx["date"])
-    if rate is None:
-        return False
+    known = dict(tx.get("amountIn") or {})
+    if tx.get("amountHome") is not None:
+        known.setdefault("EUR", tx["amountHome"])  # written by older versions
+    filled = amounts_in(tx["amount"], tx.get("currency", "EUR"), tx["date"], known)
+    if filled == (tx.get("amountIn") or {}):
+        return False  # every lookup still failing; nothing new to write
     firestore.client().collection("users").document(uid).collection("transactions").document(tx_id).update(
-        {"amountHome": round(tx["amount"] * rate, 2)}
+        {"amountIn": filled}
     )
     return True
 
 
-def _fill_missing_home_amounts(uid: str) -> dict:
-    """Retries the EUR conversion for every foreign-currency transaction
-    still without amountHome. Used by the nightly job and
-    scripts/categorize_backlog.py."""
+def _fill_missing_display_amounts(uid: str) -> dict:
+    """Converts every transaction still missing an amount in a display
+    currency. Used by the nightly job and scripts/categorize_backlog.py."""
     tx_col = firestore.client().collection("users").document(uid).collection("transactions")
     filled = failed = 0
-    for doc in tx_col.where(filter=FieldFilter("currency", "!=", HOME_CURRENCY)).stream():
+    for doc in tx_col.stream():
         tx = doc.to_dict() or {}
-        if tx.get("amountHome") is not None:
+        if not missing_display_currencies(tx):
             continue
-        if _ensure_home_amount(uid, doc.id, tx):
-            filled += 1
-        else:
+        _ensure_display_amounts(uid, doc.id, tx)
+        if missing_display_currencies((doc.reference.get().to_dict() or {})):
             failed += 1
+        else:
+            filled += 1
     return {"filled": filled, "failed": failed}
 
 
@@ -244,7 +248,7 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
         # always starts a fresh one rather than conflicting with one.
         _categorize_safely(uid, tx_id, after)
 
-    if after and _ensure_home_amount(uid, tx_id, after):
+    if after and _ensure_display_amounts(uid, tx_id, after):
         return  # that write fires this trigger again, which recomputes the month
 
     recompute_month(uid, month)
@@ -395,5 +399,5 @@ def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
     # failed earlier (and isn't brand new from this sync, which its trigger
     # is handling right now) gets another go, one at a time.
     for uid in _user_ids():
-        print(f"daily_bank_sync EUR amounts uid={uid}: {_fill_missing_home_amounts(uid)}")
+        print(f"daily_bank_sync EUR/GBP amounts uid={uid}: {_fill_missing_display_amounts(uid)}")
         print(f"daily_bank_sync catch-up uid={uid}: {_categorize_pending(uid, deadline)}")
