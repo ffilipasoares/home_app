@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  setDoc,
   onSnapshot,
   orderBy,
   query,
@@ -80,6 +81,44 @@ export async function updateTransactionMonth(uid: string, txId: string, month: s
   await writeBatch(db)
     .set(doc(transactionsCol(uid), txId), { month, updatedAt: Date.now() }, { merge: true })
     .commit();
+}
+
+export type ManualTransaction = {
+  date: string; // YYYY-MM-DD
+  merchantRaw: string;
+  amount: number; // signed: negative = money out, positive = money in
+  currency: string;
+  /** null = let the categorization agent choose. */
+  category: string | null;
+};
+
+/**
+ * Adds a transaction by hand, e.g. something paid from another account. It
+ * goes through the same Cloud Function trigger as any other: converted to
+ * EUR/GBP, categorized by the agent if no category was picked (a picked
+ * one teaches the merchant cache, like an edit), and counted in the
+ * dashboard.
+ */
+export async function addManualTransaction(uid: string, input: ManualTransaction): Promise<string> {
+  const ref = doc(transactionsCol(uid));
+  const now = Date.now();
+  const tx: Transaction = {
+    id: ref.id,
+    date: input.date,
+    month: input.date.slice(0, 7),
+    amount: input.amount,
+    currency: input.currency,
+    merchantRaw: input.merchantRaw,
+    merchantNormalized: normalizeMerchant(input.merchantRaw),
+    category: input.category,
+    needsReview: input.category === null,
+    source: input.category === null ? "manual-import" : "manual-edit",
+    addedManually: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await setDoc(ref, tx);
+  return tx.month;
 }
 
 /** Removes a transaction entirely — the Cloud Function trigger still fires on a delete and recomputes the month it was counted in, so it drops out of every total, not just the visible list. */

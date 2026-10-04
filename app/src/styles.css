@@ -140,7 +140,9 @@ h2 {
 
 select,
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+input[type="date"],
+input[type="month"] {
   font: inherit;
   padding: 10px 12px;
   border-radius: 8px;

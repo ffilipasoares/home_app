@@ -17,7 +17,8 @@ export function CurrencySelect({
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value as DisplayCurrency)}
-      style={{ width: 76, flexShrink: 0 }}
+      // Wide enough for "£ GBP" / "€ EUR" without cutting it off.
+      style={{ width: "auto", minWidth: 104, flexShrink: 0 }}
     >
       {DISPLAY_CURRENCIES.map((c) => (
         <option key={c} value={c}>

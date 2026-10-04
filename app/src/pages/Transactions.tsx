@@ -10,6 +10,7 @@ import { subscribeAvailableMonths } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { currentMonth } from "../lib/month";
 import { MonthPicker } from "../components/MonthPicker";
+import { AddTransactionForm } from "../components/AddTransactionForm";
 import { formatCurrency } from "../lib/format";
 import { ENTRY_CURRENCY } from "../types";
 import type { CategoryDef, DisplayCurrency, Transaction } from "../types";
@@ -92,6 +93,7 @@ function TransactionRow({
         <div className="tx-date">
           {tx.date}
           {!expanded && categoryLabel && <> · {categoryLabel}</>}
+          {tx.addedManually && <> · added by you</>}
           {tx.category && tx.source === "auto" && tx.confidence !== undefined && tx.confidence < AI_SURE_THRESHOLD && (
             <> · AI not sure ({(tx.confidence * 100).toFixed(0)}%)</>
           )}
@@ -184,10 +186,36 @@ export function Transactions() {
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>(ENTRY_CURRENCY);
   useEffect(() => subscribeUserSettings(uid, (s) => setDisplayCurrency(s.displayCurrency ?? ENTRY_CURRENCY)), [uid]);
+  const [adding, setAdding] = useState(false);
+  const [addedNote, setAddedNote] = useState(false);
 
   return (
     <div className="screen">
-      <h1>Transactions</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <h1 style={{ flex: 1 }}>Transactions</h1>
+        {!adding && (
+          <button type="button" className="button secondary" onClick={() => setAdding(true)}>
+            + Add
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <AddTransactionForm
+          uid={uid}
+          categories={categories}
+          defaultCurrency={displayCurrency}
+          onCancel={() => setAdding(false)}
+          onAdded={(addedMonth) => {
+            setAdding(false);
+            setMonth(addedMonth);
+            setAddedNote(true);
+            setTimeout(() => setAddedNote(false), 3000);
+          }}
+        />
+      )}
+      {addedNote && <p style={{ color: "var(--status-good)", fontSize: 13 }}>Transaction added.</p>}
+
       <div className="field">
         <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
       </div>

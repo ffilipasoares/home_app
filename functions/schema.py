@@ -94,6 +94,7 @@ class Transaction(TypedDict, total=False):
     # A move between the user's own accounts (Revolut EXCHANGE between the
     # EUR and GBP pockets). Never categorized, never counted in any total.
     internalTransfer: bool
+    addedManually: bool  # entered by hand on the Transactions page, e.g. paid from another account
     createdAt: int
     updatedAt: int
 
