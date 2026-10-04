@@ -23,7 +23,9 @@ import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, Monthly
 function viewFor(dashboard: DashboardDoc | null, currency: DisplayCurrency): DashboardView | null {
   if (!dashboard) return null;
   const view = dashboard.views?.[currency];
-  if (view) return view;
+  // Views computed by the previous version have no `rates` yet; treat them as
+  // "no rate known" until the month is recalculated.
+  if (view) return { ...view, rates: view.rates ?? { [currency]: 1 }, missingRate: view.missingRate ?? false };
   if (currency !== "EUR" || dashboard.moneyLeft === undefined) return null;
   return {
     currency: "EUR",
