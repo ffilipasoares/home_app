@@ -72,7 +72,7 @@ export type TransactionSource = "manual-import" | "manual-edit" | "auto" | "bank
 export type Transaction = {
   id: string;
   date: string; // YYYY-MM-DD
-  month: string; // YYYY-MM — the budget month, editable independent of date (see updateTransactionMonth)
+  month: string; // YYYY-MM — the budget month, editable independent of date (see saveTransactionEdit)
   /** Signed: negative = money out, positive = money in, in `currency`. */
   amount: number;
   currency: string;

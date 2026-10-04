@@ -63,33 +63,23 @@ export function subscribeAllTransactions(uid: string, cb: (transactions: Transac
   );
 }
 
-/** Manual category edit from the Transactions screen — the Cloud Function trigger picks this up to learn the merchant rule and recompute the month's dashboard. */
-export async function updateTransactionCategory(uid: string, txId: string, category: string): Promise<void> {
-  const batch = writeBatch(db);
-  batch.set(
-    doc(transactionsCol(uid), txId),
-    {
-      category,
-      needsReview: false,
-      source: "manual-edit",
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
-  await batch.commit();
-}
-
 /**
- * Moves a transaction to a different budget month than the calendar month
- * its `date` falls in — e.g. a salary that lands on the 25th but is really
- * next month's income. `date` (the real transaction date) never changes;
- * `month` (which dashboard it's summed into) does. The Cloud Function
- * trigger recomputes both the old and new month, so nothing goes stale.
+ * Saves an edit from the Transactions page in one write: a new category
+ * (treated like any manual edit, so it teaches the merchant cache) and/or
+ * a different budget month. One write, so the Cloud Function sees both
+ * changes together.
  */
-export async function updateTransactionMonth(uid: string, txId: string, month: string): Promise<void> {
-  await writeBatch(db)
-    .set(doc(transactionsCol(uid), txId), { month, updatedAt: Date.now() }, { merge: true })
-    .commit();
+export async function saveTransactionEdit(
+  uid: string,
+  txId: string,
+  changes: { category?: string; month?: string },
+): Promise<void> {
+  const patch: Record<string, unknown> = { updatedAt: Date.now() };
+  if (changes.category !== undefined) {
+    Object.assign(patch, { category: changes.category, needsReview: false, source: "manual-edit" });
+  }
+  if (changes.month !== undefined) patch.month = changes.month;
+  await setDoc(doc(transactionsCol(uid), txId), patch, { merge: true });
 }
 
 export type ManualTransaction = {

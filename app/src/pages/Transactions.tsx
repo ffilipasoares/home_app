@@ -4,8 +4,7 @@ import {
   deleteTransaction,
   subscribeAllTransactions,
   subscribeMonthTransactions,
-  updateTransactionCategory,
-  updateTransactionMonth,
+  saveTransactionEdit,
 } from "../lib/transactions";
 import { subscribeAvailableMonths } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
@@ -48,15 +47,14 @@ function WaitingNote({ transactions }: { transactions: Transaction[] }) {
 function TransactionRow({
   tx,
   categories,
-  onSaveCategory,
-  onMove,
+  onSave,
   onDelete,
   displayCurrency,
 }: {
   tx: Transaction;
   categories: CategoryDef[];
-  onSaveCategory: (category: string) => void;
-  onMove: (month: string) => void;
+  /** Saves the category and/or budget month that changed. */
+  onSave: (changes: { category?: string; month?: string }) => Promise<void>;
   onDelete: () => void;
   displayCurrency: DisplayCurrency;
 }) {
@@ -72,8 +70,21 @@ function TransactionRow({
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
-  const canSaveCategory = !!category && (categoryDirty || tx.needsReview);
+  // Confirming an older AI suggestion counts as a change too.
+  const saveCategory = !!category && (categoryDirty || tx.needsReview);
+  const canSave = saveCategory || monthDirty;
+  const [saving, setSaving] = useState(false);
   const categoryLabel = categories.find((c) => c.id === tx.category)?.label;
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave({ category: saveCategory ? category : undefined, month: monthDirty ? budgetMonth : undefined });
+      setExpanded(false);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function handleDelete() {
     if (confirm(`Delete this transaction (${tx.merchantRaw}, ${formatCurrency(tx.amount, tx.currency)})? This can't be undone.`)) {
@@ -126,48 +137,54 @@ function TransactionRow({
       </button>
 
       {expanded && (
-        <div style={{ flex: "1 1 100%", marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="" disabled>
-                Choose category…
+        <div style={{ flex: "1 1 100%", marginTop: 8, display: "flex", flexDirection: "column", gap: 10 }}>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
+            <option value="" disabled>
+              Choose category…
+            </option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
               </option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+            ))}
+          </select>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <label style={{ fontSize: 12, color: "var(--text-muted)" }}>Counts toward</label>
+            <input
+              type="month"
+              value={budgetMonth}
+              onChange={(e) => setBudgetMonth(e.target.value)}
+              style={{ width: 200, maxWidth: "100%" }}
+              aria-label="Counts toward month"
+            />
+          </div>
+
+          {/* Save is the main action, on the right; Delete is a quiet text button on the left. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleDelete}
+              style={{
+                background: "none",
+                border: "none",
+                padding: "6px 0",
+                font: "inherit",
+                fontSize: 13,
+                color: "var(--status-critical)",
+                cursor: "pointer",
+              }}
+            >
+              Delete
+            </button>
             <button
               type="button"
               className="button"
-              style={{ padding: "8px 14px" }}
-              disabled={!canSaveCategory}
-              onClick={() => onSaveCategory(category)}
+              style={{ marginLeft: "auto", padding: "10px 22px" }}
+              disabled={!canSave || saving}
+              onClick={handleSave}
             >
-              {tx.needsReview && !categoryDirty && tx.category ? "Confirm" : "Save"}
-            </button>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <label style={{ fontSize: 12, color: "var(--text-muted)" }}>Counts toward</label>
-            <input type="month" value={budgetMonth} onChange={(e) => setBudgetMonth(e.target.value)} style={{ width: 140 }} />
-            <button
-              type="button"
-              className="button secondary"
-              style={{ padding: "6px 12px" }}
-              disabled={!monthDirty}
-              onClick={() => onMove(budgetMonth)}
-            >
-              Move
-            </button>
-            <button
-              type="button"
-              className="button secondary"
-              style={{ padding: "6px 12px", marginLeft: "auto", color: "var(--status-critical)" }}
-              onClick={handleDelete}
-            >
-              Delete
+              {saving ? "Saving…" : tx.needsReview && !categoryDirty && tx.category && !monthDirty ? "Confirm" : "Save"}
             </button>
           </div>
         </div>
@@ -335,8 +352,7 @@ export function Transactions() {
               tx={tx}
               categories={categories}
               displayCurrency={displayCurrency}
-              onSaveCategory={(category) => updateTransactionCategory(uid, tx.id, category)}
-              onMove={(newMonth) => updateTransactionMonth(uid, tx.id, newMonth)}
+              onSave={(changes) => saveTransactionEdit(uid, tx.id, changes)}
               onDelete={() => deleteTransaction(uid, tx.id)}
             />
           ))}
