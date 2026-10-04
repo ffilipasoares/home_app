@@ -2,8 +2,8 @@
 
 Gets the Firestore data model, security rules, Cloud Functions (automatic
 categorization + dashboard recompute), and installable PWA running
-end-to-end. No bank integration yet — that's Phase 2 (see
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+end-to-end, then (§10) connects Revolut for a nightly import. See
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
 
 ## 1. Prerequisites
 
@@ -152,6 +152,54 @@ home screen like an installed app.
    it outright.
 5. **Dashboard** → updates within a couple of seconds of each save.
 
+## 10. Connect Revolut (automatic nightly import)
+
+Needs the Enable Banking **production** application from Phase 2 step 2
+(restricted mode, **Account Information only**, your Revolut accounts
+linked to it in the Enable Banking console) and its `.pem` private key.
+
+1. **Store the private key in Secret Manager.** The Cloud Functions read
+   it from there; it never goes in code or config files. From the repo
+   root:
+   ```bash
+   firebase functions:secrets:set ENABLE_BANKING_PRIVATE_KEY --data-file /full/path/to/the-production.pem
+   ```
+   (Turns on the Secret Manager API the first time, if asked.) If your
+   Firebase CLI doesn't know `--data-file`, the same secret can be created
+   with `gcloud secrets create ENABLE_BANKING_PRIVATE_KEY --data-file=/full/path/to/the-production.pem`.
+   Keep the `.pem` out of the project folder.
+2. **Deploy the functions and the app:**
+   ```bash
+   firebase deploy --only functions
+   cd app && npm run build && cd ..
+   firebase deploy --only hosting
+   ```
+   The first deploy of the nightly job turns on Cloud Scheduler (accept
+   if asked). The application ID, Revolut (PT) and the
+   `https://home-app-1e7e3.web.app/bank-callback` redirect are defaults in
+   `functions/enable_banking.py`; override them with
+   `ENABLE_BANKING_APP_ID`, `ENABLE_BANKING_ASPSP_NAME`,
+   `ENABLE_BANKING_ASPSP_COUNTRY` or `ENABLE_BANKING_REDIRECT_URL` in
+   `functions/.env` only if yours differ.
+3. **Connect.** Settings → **Bank connection** → **Connect Revolut** →
+   approve in Revolut, sharing the EUR and GBP joint accounts only. You
+   come back to the app, which imports about 90 days of history and
+   categorizes it over the next few minutes. On iPhone, Revolut may send
+   you back to Safari instead of the installed app; sign in there if
+   asked and it finishes on its own (or do this step once from a
+   laptop).
+
+After that, settled transactions are imported every night at 23:00
+(Lisbon time); **Sync now** in Settings does the same on demand.
+Pending card payments appear once they settle. Moves between the EUR and
+GBP accounts are shown in Transactions but never counted. Revolut's
+access lasts about 90 days; Settings shows the date, and **Reconnect
+Revolut** renews it (nothing is imported twice).
+
+If you'd already imported Revolut CSVs for the same months, those
+transactions will now appear twice (CSV rows and synced rows have
+different IDs). Delete the CSV-imported ones for those months.
+
 ## Local development
 
 ```bash
@@ -183,6 +231,22 @@ GOOGLE_CLOUD_PROJECT=your-firebase-project-id python3 scripts/test_categorize.py
 Edit the sample categories/rules/merchants at the top of the script to
 match your real Settings categories and actual statement merchant strings.
 
+### Testing the bank sync offline
+
+`scripts/test_bank_sync.py` runs the connect flow and the sync against an
+in-memory stand-in for Firestore and Enable Banking (no network, no
+credentials): booked-only import, internal transfers, GBP conversion, no
+duplicates on re-sync, expired-access handling and reconnecting.
+
+```bash
+cd functions && source venv/bin/activate && cd ..
+python3 scripts/test_bank_sync.py
+```
+
+`scripts/test_enable_banking.py` talks to the real Enable Banking API
+from your machine (see its header); use `--redact` or `summary` before
+sharing any of its output.
+
 ## Cost
 
 Hosting, Firestore, Auth, and the Cloud Functions all sit inside Firebase/
@@ -192,6 +256,6 @@ cents — see [docs/ARCHITECTURE.md §10](docs/ARCHITECTURE.md#10-cost-estimate)
 
 ## What's next
 
-- **Phase 2** — open banking sync, so statements land automatically instead
-  of via CSV upload.
+- **Phase 2 step 4** — a reminder to reconnect Revolut before its access
+  expires.
 - **Phase 3 (stretch)** — a conversational "ask your finances" feature.

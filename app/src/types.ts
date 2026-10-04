@@ -52,7 +52,7 @@ export type CategoryDef = {
   special?: "income" | "savings";
 };
 
-export type TransactionSource = "manual-import" | "manual-edit" | "auto";
+export type TransactionSource = "manual-import" | "manual-edit" | "auto" | "bank-sync";
 
 export type Transaction = {
   id: string;
@@ -74,23 +74,41 @@ export type Transaction = {
   needsReview: boolean;
   source: TransactionSource;
   confidence?: number;
+  /** users/{uid}/accounts/{accountId}, for bank-synced transactions. */
   accountId?: string;
+  /** The bank's own transaction id, for bank-synced transactions. */
+  externalId?: string;
+  /**
+   * A move between your own accounts (Revolut EUR <-> GBP exchange). Never
+   * categorized and never counted in any dashboard total.
+   */
+  internalTransfer?: boolean;
   createdAt: number;
   updatedAt: number;
 };
 
 /**
- * A linked bank connection (users/{uid}/accounts/{accountId}) — one doc
- * per currency pocket/account the aggregator returns under a single
- * consent (e.g. a Revolut login with EUR and GBP pockets is two docs, one
- * consent). Unused until Phase 2's bank-sync step actually creates these.
+ * A linked bank account (users/{uid}/accounts/{accountId}), one doc per
+ * account the bank shares under a consent: the Revolut EUR and GBP joint
+ * accounts are two docs from one consent. Written only by the Cloud
+ * Functions (functions/bank_sync.py); the session credentials themselves
+ * live in a server-only collection the app can't read.
  */
 export type AccountLink = {
+  id: string;
   provider: string;
+  /** e.g. "Revolut EUR" */
   displayName: string;
   currency: string;
-  lastSyncCursor: string | null;
+  /** ms; the bank stops sharing after this and a reconnect is needed. */
   consentExpiresAt: number | null;
+  status: "active" | "reconnect-needed" | "disconnected";
+  lastError: string | null;
+  connectedAt: number;
+  lastSyncedAt?: number;
+  /** Latest booked transaction date seen, YYYY-MM-DD. */
+  lastBookedDate?: string | null;
+  lastImportedCount?: number;
 };
 
 export type CategoryRule = {

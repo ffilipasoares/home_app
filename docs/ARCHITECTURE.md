@@ -326,17 +326,27 @@ users/{uid}/monthlyIncome/{YYYY-MM}
   joaoSalary: number | null      -- always manual — never lands in this account, nothing to auto-detect
 
 users/{uid}/accounts/{accountId}
-  provider, displayName, currency, lastSyncCursor, consentExpiresAt
-  -- one doc per currency pocket/account a linked aggregator connection
-  -- returns (a Revolut login with EUR + GBP pockets under one consent is
-  -- two docs). Defined now (Phase 2 step 1); nothing populates it until
-  -- the bank-sync steps land.
+  provider, displayName, currency, consentExpiresAt, status
+  ("active"|"reconnect-needed"|"disconnected"), lastError, connectedAt,
+  lastSyncedAt, lastBookedDate, lastImportedCount
+  -- one doc per account the bank shares under a consent (the Revolut EUR
+  -- and GBP joint accounts are two docs from one consent). accountId is
+  -- derived from Enable Banking's identification_hash, stable across
+  -- reconnects. Written only by functions/bank_sync.py.
+
+bankSecrets/{uid}/accounts/{accountId}      (server-only: no security rule)
+  sessionId, accountUid   -- what the sync needs to read transactions
+
+bankAuthStates/{state}                       (server-only: no security rule)
+  uid, createdAt          -- one-time state for an in-flight consent, 30 min
 
 users/{uid}/transactions/{externalTxId}
   date, amount, currency, amountHome?, merchantRaw, merchantNormalized,
-  category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import",
+  category, needsReview: bool, source: "auto"|"manual-edit"|"manual-import"|"bank-sync",
   confidence, month: "YYYY-MM" (the budget month — independently editable
-  from date, either by hand or automatically, see §8), accountId
+  from date, either by hand or automatically, see §8), accountId,
+  externalId (the bank's entry_reference), internalTransfer (a move between
+  your own accounts: never categorized, never counted)
 
 users/{uid}/categoryRules/{merchantNormalized}
   category, timesConfirmed, lastUpdated
@@ -551,14 +561,27 @@ Realistic total: **under $1–2/month**, likely $0 most months.
         ones are skipped until they settle, so amounts never change after
         they appear.
       - The first sync imports as much history as Revolut allows.
-   3. **Connect flow + daily sync** — a "Connect Revolut" button
-      (Settings), the consent redirect, and a scheduled Cloud Function
-      (`@scheduler_fn.on_schedule` — not the Cloud Scheduler → Cloud Run
-      Job originally planned in §3.1's era; a scheduled Cloud Function
-      stays in the same Python deployment this project already has)
-      pulling transactions since each account's cursor into the existing
-      `transactions` collection, so they flow through the categorization
-      agent and dashboard recompute unchanged.
+   3. **Connect flow + daily sync — built, not yet deployed.** A
+      "Bank connection" card in Settings (Connect/Reconnect Revolut, the
+      linked accounts with last sync and consent expiry, Sync now). The
+      button calls `bank_connect_start`, which records a one-time state
+      and returns Revolut's consent URL; Revolut returns to
+      `/bank-callback`, which the app turns into its `#/bank-callback`
+      page (the app routes on the hash) and which calls
+      `bank_connect_finish`. That checks the state, creates the session,
+      stores the accounts and imports the full history (~90 days for
+      Revolut) straight away. `daily_bank_sync`
+      (`@scheduler_fn.on_schedule`, 23:00 Europe/Lisbon) then re-reads the
+      last few days for every account. Everything lands in the existing
+      `transactions` collection, so the categorization agent and
+      dashboard recompute handle it unchanged. Code:
+      `functions/enable_banking.py`, `functions/bank_sync.py`,
+      `functions/main.py`; offline test: `scripts/test_bank_sync.py`.
+      Known cost of the first import: ~400 transactions arriving at once
+      means ~400 categorization runs in parallel, so some may hit Vertex AI
+      rate limits and stay "needs review" for a manual tap, and the
+      per-write dashboard recompute reads past Firestore's 50k/day free
+      reads once (cents).
    4. **Consent-expiry handling** — a "reconnect Revolut" banner before
       the ~90-day PSD2 consent lapses.
 4. **Phase 3 (stretch) — conversational "ask your finances".** A chat

@@ -5,6 +5,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Transactions } from "./pages/Transactions";
 import { Import } from "./pages/Import";
 import { Settings } from "./pages/Settings";
+import { BankCallback } from "./pages/BankCallback";
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/import" element={<Import />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/bank-callback" element={<BankCallback />} />
           </Routes>
         </AuthGate>
       </HashRouter>

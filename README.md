@@ -8,7 +8,7 @@ installable web app.
 Runs on Google Cloud / Firebase. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 for the full design and phased build plan.
 
-## Status: Phase 1 complete; Phase 2 (bank sync) in progress — step 1 of 4
+## Status: Phase 1 complete; Phase 2 (bank sync) in progress — step 3 of 4 built
 
 Data model, security rules, dashboard recomputation, and the installable
 PWA (auth, dashboard, transactions, CSV import, settings) are built. Import
@@ -21,12 +21,13 @@ suggestion you confirm with one tap. Salary/other income is entered per
 month directly on the Dashboard, so reviewing an old month always shows
 what actually applied then.
 
-Phase 2 will connect Revolut (via Enable Banking) for automatic daily
-sync, merging its EUR and GBP pockets into one currency for the
-dashboard. Step 1 — the data model and currency-merge math
-(`amountHome`, `functions/fx.py`) — is built and needs no bank connection
-to work correctly for existing EUR data; the actual bank connection
-(steps 2-4) comes next. See [docs/ARCHITECTURE.md §11](docs/ARCHITECTURE.md#11-phased-build-plan).
+Phase 2 connects Revolut (via Enable Banking) for an automatic nightly
+import of the EUR and GBP joint accounts, merged into one currency on the
+dashboard. The currency merge (step 1), the Enable Banking application
+(step 2, checked against the real account) and the connect flow plus
+daily sync (step 3) are built; step 3 still needs deploying (SETUP.md
+§10). The "reconnect before access expires" banner (step 4) comes next.
+See [docs/ARCHITECTURE.md §11](docs/ARCHITECTURE.md#11-phased-build-plan).
 
 **[SETUP.md](SETUP.md) has the step-by-step to get this running on your own
 Firebase project and installed on your iPhone.**
@@ -40,7 +41,11 @@ functions/   Cloud Functions (Python): an ADK categorization agent
              auto-categorizes each new transaction (exact-match cache,
              then the agent), learns from manual corrections, and
              recomputes the monthly dashboard on every transaction/income
-             write
+             write; the Revolut connection and nightly bank sync
+             (enable_banking.py, bank_sync.py)
+scripts/     local test tools: the categorization agent, the Enable
+             Banking API (test_enable_banking.py), the bank sync offline
+             (test_bank_sync.py)
 firestore.rules, firestore.indexes.json, firebase.json — Firebase config
 docs/ARCHITECTURE.md — full architecture design + roadmap
 SETUP.md     — how to deploy this to your own Firebase project
@@ -49,6 +54,7 @@ SETUP.md     — how to deploy this to your own Firebase project
 ## Roadmap
 
 - **Phase 2** — open banking sync (no more manual CSV export/upload).
-  Step 1 (data model + currency merge) done; connecting Revolut itself
-  is next.
+  Steps 1-3 built (currency merge, Enable Banking application, connect
+  flow + nightly sync); step 4, a reconnect reminder before Revolut's
+  access expires, is next.
 - **Phase 3 (stretch)** — a conversational "ask your finances" agent.

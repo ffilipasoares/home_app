@@ -8,6 +8,7 @@ import {
   subscribeUserSettings,
 } from "../lib/settings";
 import { FixedItemsEditor } from "../components/FixedItemsEditor";
+import { BankConnectionCard } from "../components/BankConnectionCard";
 import type { CategoryDef, SavingsGoal, UserSettings } from "../types";
 
 export function Settings() {
@@ -71,6 +72,8 @@ export function Settings() {
         per month — so scrolling back shows exactly what applied that month, not whatever
         this page currently says.
       </p>
+
+      <BankConnectionCard uid={uid} />
 
       <div className="card">
         <h2>Savings goal</h2>

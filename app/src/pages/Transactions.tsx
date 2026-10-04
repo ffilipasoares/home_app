@@ -51,6 +51,7 @@ function TransactionRow({
           {tx.needsReview && (
             <span className="badge">{tx.category && tx.source === "auto" ? "confirm suggestion" : "needs review"}</span>
           )}
+          {tx.internalTransfer && <span className="badge">between your accounts · not counted</span>}
         </div>
         <div className="tx-date">
           {tx.date}
