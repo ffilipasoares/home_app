@@ -221,6 +221,30 @@ If you'd already imported Revolut CSVs for the same months, those
 transactions will now appear twice (CSV rows and synced rows have
 different IDs). Delete the CSV-imported ones for those months.
 
+## 11. Switching the app to a different Google account
+
+Only one Google account can use the app. To make another one the owner,
+keeping all data and the Revolut connection:
+
+1. Put the new email in all three places, then deploy:
+   - `app/.env.local`: `VITE_ALLOWED_EMAIL=new@gmail.com`
+   - `firestore.rules`: the email in `isOwner`
+   - `functions/.env`: `ALLOWED_EMAIL=new@gmail.com`
+   ```bash
+   firebase deploy --only firestore:rules,functions
+   cd app && npm run build && cd .. && firebase deploy --only hosting
+   ```
+2. Sign in to the app once with the new account (it starts empty).
+3. Move the data (dry run first, then `--apply`):
+   ```bash
+   cd functions && source venv/bin/activate && cd ..
+   GOOGLE_CLOUD_PROJECT=<project-id> python3 scripts/move_to_account.py --from old@gmail.com --to new@gmail.com
+   GOOGLE_CLOUD_PROJECT=<project-id> python3 scripts/move_to_account.py --from old@gmail.com --to new@gmail.com --apply
+   ```
+   Everything is copied, including the Revolut connection, so the
+   scheduled sync updates the new account from then on. The old
+   account's data stays as a backup but is no longer synced.
+
 ## Local development
 
 ```bash
