@@ -54,6 +54,10 @@ def recompute_month(uid: str, month: str) -> None:
 
     for doc in tx_docs:
         tx = doc.to_dict()
+        # Money moved between the user's own accounts is neither spending
+        # nor income (see bank_sync.py).
+        if tx.get("internalTransfer"):
+            continue
         if tx.get("needsReview") or not tx.get("category"):
             needs_review_count += 1
             continue

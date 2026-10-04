@@ -67,27 +67,35 @@ class Transaction(TypedDict, total=False):
     merchantNormalized: str
     category: str | None
     needsReview: bool
-    source: Literal["manual-import", "manual-edit", "auto"]
+    source: Literal["manual-import", "manual-edit", "auto", "bank-sync"]
     confidence: float
-    accountId: str
+    accountId: str  # users/{uid}/accounts/{accountId}, for bank-synced transactions
+    externalId: str  # the bank's own entry_reference, for bank-synced transactions
+    # A move between the user's own accounts (Revolut EXCHANGE between the
+    # EUR and GBP pockets). Never categorized, never counted in any total.
+    internalTransfer: bool
     createdAt: int
     updatedAt: int
 
 
 class AccountLink(TypedDict, total=False):
-    """A linked bank connection (users/{uid}/accounts/{accountId}) — one
-    doc per currency pocket/account the aggregator returns under a single
-    consent (e.g. a Revolut login with EUR and GBP pockets is two docs,
-    one consent). Unused until Phase 2's bank-sync step actually creates
-    these; defined now so the shape exists before the code that
-    populates it does.
+    """A linked bank account (users/{uid}/accounts/{accountId}), one doc per
+    account the bank shares under a consent. A Revolut login's EUR and GBP
+    joint accounts are two docs from one consent. Written only by
+    bank_sync.py; the session credentials live separately in the
+    server-only bankSecrets collection.
     """
 
-    provider: str  # e.g. "enablebanking"
+    provider: str  # "enablebanking"
     displayName: str  # e.g. "Revolut EUR", for Settings' account list
     currency: str
-    lastSyncCursor: str | None
-    consentExpiresAt: int | None
+    consentExpiresAt: int | None  # ms; the bank stops sharing after this
+    status: Literal["active", "reconnect-needed", "disconnected"]
+    lastError: str | None
+    connectedAt: int
+    lastSyncedAt: int
+    lastBookedDate: str | None  # latest booked transaction date seen, YYYY-MM-DD
+    lastImportedCount: int
 
 
 class DashboardDoc(TypedDict):

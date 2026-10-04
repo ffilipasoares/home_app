@@ -32,13 +32,23 @@ def convert_to_home_currency(amount: float, currency: str, on_date: str) -> floa
     """
     if currency == HOME_CURRENCY:
         return amount
+    rate = rate_to_home_currency(currency, on_date)
+    return None if rate is None else round(amount * rate, 2)
 
+
+def rate_to_home_currency(currency: str, on_date: str) -> float | None:
+    """The unrounded ECB rate from `currency` to HOME_CURRENCY for
+    `on_date`, or None on any failure. For a weekend or holiday,
+    Frankfurter returns the last published rate before that date. Callers
+    converting many transactions (the bank sync) fetch this once per
+    currency and date and reuse it."""
+    if currency == HOME_CURRENCY:
+        return 1.0
     url = f"https://api.frankfurter.dev/v1/{on_date}?base={currency}&symbols={HOME_CURRENCY}"
     try:
         with urllib.request.urlopen(url, timeout=_TIMEOUT_SECONDS) as resp:
             data = json.loads(resp.read())
-        rate = data["rates"][HOME_CURRENCY]
-        return round(amount * rate, 2)
+        return float(data["rates"][HOME_CURRENCY])
     except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as err:
-        print(f"convert_to_home_currency failed for {currency}->{HOME_CURRENCY} on {on_date}: {err}")
+        print(f"rate_to_home_currency failed for {currency}->{HOME_CURRENCY} on {on_date}: {err}")
         return None

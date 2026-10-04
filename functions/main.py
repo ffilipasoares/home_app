@@ -21,23 +21,42 @@ Four responsibilities, split across two triggers, all idempotent:
 A CSV import writing 100 rows fires (1) 100 times for the same month;
 each run just re-derives the same totals, so that's wasted work, not
 wrong output — fine at this project's transaction volume.
+
+Bank connection (Revolut via Enable Banking, see bank_sync.py): callable
+functions start and finish the consent and run an on-demand sync, and a
+scheduled function imports new transactions once a day. Synced
+transactions land in the same transactions collection, so the triggers
+above categorize them and update the dashboard with no special casing.
 """
 
 import asyncio
+import os
 import time
 
 import firebase_admin
 from firebase_admin import firestore
-from firebase_functions import firestore_fn
+from firebase_functions import firestore_fn, https_fn, scheduler_fn
+from firebase_functions.params import SecretParam
 from google.cloud.firestore_v1 import Increment
 
+import bank_sync
 from budget_month import resolve_budget_month
 from categorize import CONFIDENCE_THRESHOLD, categorize_transaction
 from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
+from enable_banking import Client, EnableBankingError
 from schema import CategoryDef, Transaction
 
 firebase_admin.initialize_app()
+
+# The Enable Banking application's private key, stored in Secret Manager
+# (`firebase functions:secrets:set ENABLE_BANKING_PRIVATE_KEY`, see
+# SETUP.md). Only the functions that list it in `secrets=` can read it.
+ENABLE_BANKING_PRIVATE_KEY = SecretParam("ENABLE_BANKING_PRIVATE_KEY")
+# Same single allow-listed account as firestore.rules and the app's
+# VITE_ALLOWED_EMAIL. Security rules don't cover callable functions, so
+# the check is repeated here.
+ALLOWED_EMAIL = os.environ.get("ALLOWED_EMAIL", "filipaferreirasoares12@gmail.com")
 
 
 def _load_categories(uid: str) -> list[CategoryDef]:
@@ -172,3 +191,74 @@ def on_monthly_income_write(event: firestore_fn.Event[firestore_fn.Change]) -> N
     like on_transaction_write needs is necessary here.
     """
     recompute_month(event.params["uid"], event.params["month"])
+
+
+# --- Bank connection ----------------------------------------------------------
+
+
+def _require_owner(req: https_fn.CallableRequest) -> str:
+    if req.auth is None:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAUTHENTICATED, "Sign in first.")
+    if req.auth.token.get("email") != ALLOWED_EMAIL:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.PERMISSION_DENIED, "Not allowed.")
+    return req.auth.uid
+
+
+def _bank_client() -> Client:
+    return Client(ENABLE_BANKING_PRIVATE_KEY.value)
+
+
+def _bank_error(err: EnableBankingError) -> https_fn.HttpsError:
+    print(f"Enable Banking call failed: {err}")
+    return https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, f"The bank connection service returned an error ({err.status}).")
+
+
+@https_fn.on_call(secrets=[ENABLE_BANKING_PRIVATE_KEY])
+def bank_connect_start(req: https_fn.CallableRequest) -> dict:
+    """Returns the Revolut consent URL for the app to redirect to."""
+    uid = _require_owner(req)
+    try:
+        return {"url": bank_sync.start_connect(uid, _bank_client())}
+    except EnableBankingError as err:
+        raise _bank_error(err) from err
+
+
+# The first sync imports ~90 days of history (and converts GBP amounts),
+# which can take a while, hence the longer timeout. The app's callable
+# timeout is raised to match (app/src/lib/bank.ts).
+@https_fn.on_call(secrets=[ENABLE_BANKING_PRIVATE_KEY], timeout_sec=540)
+def bank_connect_finish(req: https_fn.CallableRequest) -> dict:
+    """Called by the app's /bank-callback page with the bank's ?code and
+    ?state. Creates the session, stores the accounts and imports history."""
+    uid = _require_owner(req)
+    code = (req.data or {}).get("code")
+    state = (req.data or {}).get("state")
+    if not code or not state:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Missing code or state.")
+    try:
+        return bank_sync.finish_connect(uid, code, state, _bank_client())
+    except PermissionError as err:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.PERMISSION_DENIED, str(err)) from err
+    except EnableBankingError as err:
+        raise _bank_error(err) from err
+
+
+@https_fn.on_call(secrets=[ENABLE_BANKING_PRIVATE_KEY], timeout_sec=540)
+def bank_sync_now(req: https_fn.CallableRequest) -> dict:
+    """The Settings page's "Sync now" button: same as the daily run, for
+    the signed-in user only."""
+    uid = _require_owner(req)
+    return {"imported": bank_sync.sync_user(uid, _bank_client())}
+
+
+# Once a day, late evening Lisbon time, so the day's card payments have
+# had time to settle. Pending transactions are skipped and picked up by a
+# later run once booked.
+@scheduler_fn.on_schedule(
+    schedule="0 23 * * *",
+    timezone=scheduler_fn.Timezone("Europe/Lisbon"),
+    secrets=[ENABLE_BANKING_PRIVATE_KEY],
+    timeout_sec=540,
+)
+def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
+    bank_sync.sync_all_users(_bank_client())
