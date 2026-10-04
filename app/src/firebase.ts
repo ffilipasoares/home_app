@@ -30,6 +30,9 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
+// Always show Google's account picker instead of silently reusing the last
+// account, so you can choose (or switch) which Google account signs in.
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
 /** The only email allowed to use this app — set to your own address. */
 export const ALLOWED_EMAIL = import.meta.env.VITE_ALLOWED_EMAIL as string;
