@@ -33,6 +33,7 @@ above categorize them and update the dashboard with no special casing.
 import asyncio
 import os
 import time
+import traceback
 
 import firebase_admin
 from firebase_admin import firestore
@@ -138,6 +139,25 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
     return True
 
 
+def _categorize_safely(uid: str, tx_id: str, tx: Transaction) -> bool:
+    """Runs _auto_categorize and turns *any* unexpected failure (not just a
+    model failure) into an `aiError` on the transaction, so it shows in the
+    app and the next scheduled retry picks it up, instead of crashing the
+    trigger or stopping the whole retry run on the first bad transaction."""
+    try:
+        return asyncio.run(_auto_categorize(uid, tx_id, tx))
+    except Exception as err:  # noqa: BLE001 - recorded on the transaction
+        traceback.print_exc()
+        message = f"{type(err).__name__}: {err}"[:300]
+        try:
+            firestore.client().collection("users").document(uid).collection("transactions").document(tx_id).update(
+                {"aiError": message, "updatedAt": int(time.time() * 1000)}
+            )
+        except Exception:  # noqa: BLE001 - e.g. the transaction was deleted meanwhile
+            traceback.print_exc()
+        return False
+
+
 def _awaiting_auto_category(tx: dict) -> bool:
     return (
         tx.get("category") is None
@@ -189,7 +209,7 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
         # asyncio.run() is safe here: Cloud Functions dispatches this
         # (synchronous) handler outside any existing event loop, so this
         # always starts a fresh one rather than conflicting with one.
-        asyncio.run(_auto_categorize(uid, tx_id, after))
+        _categorize_safely(uid, tx_id, after)
 
     recompute_month(uid, month)
     # A transaction can be moved to a different budget month than its date
@@ -228,10 +248,11 @@ _RETRY_MIN_AGE_MS = 10 * 60 * 1000
 @scheduler_fn.on_schedule(schedule="*/30 * * * *", timezone=scheduler_fn.Timezone("Europe/Lisbon"), timeout_sec=540)
 def retry_categorization(event: scheduler_fn.ScheduledEvent) -> None:
     deadline = time.monotonic() + _RETRY_BUDGET_SECONDS
-    for user_doc in firestore.client().collection("users").stream():
+    users = list(firestore.client().collection("users").stream())
+    print(f"retry_categorization: checking {len(users)} user(s)")
+    for user_doc in users:
         result = _categorize_pending(user_doc.id, deadline)
-        if result["done"] or result["failed"]:
-            print(f"retry_categorization uid={user_doc.id}: {result}")
+        print(f"retry_categorization uid={user_doc.id}: {result}")
 
 
 def _categorize_pending(uid: str, deadline: float) -> dict:
@@ -242,6 +263,7 @@ def _categorize_pending(uid: str, deadline: float) -> dict:
     tx_col = db.collection("users").document(uid).collection("transactions")
     pending = list(tx_col.where(filter=FieldFilter("needsReview", "==", True)).stream())
     pending.sort(key=lambda doc: (doc.to_dict() or {}).get("date", ""), reverse=True)
+    print(f"_categorize_pending uid={uid}: {len(pending)} transaction(s) with needsReview")
 
     now_ms = int(time.time() * 1000)
     done = failed = 0
@@ -258,8 +280,10 @@ def _categorize_pending(uid: str, deadline: float) -> dict:
             continue
         if not tx.get("aiError") and now_ms - int(tx.get("updatedAt") or 0) < _RETRY_MIN_AGE_MS:
             continue
-        if asyncio.run(_auto_categorize(uid, doc.id, tx)):
+        started = time.monotonic()
+        if _categorize_safely(uid, doc.id, tx):
             done += 1
+            print(f"  categorized {doc.id} in {time.monotonic() - started:.1f}s")
         else:
             failed += 1
             last_error = (doc.reference.get().to_dict() or {}).get("aiError")
