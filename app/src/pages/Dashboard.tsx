@@ -253,6 +253,12 @@ export function Dashboard() {
             <StatTile label="Income this month" value={view.filipaSalary + view.joaoSalary} currency={currency} />
             <StatTile label="Money left" value={view.moneyLeft} hero currency={currency} />
           </div>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
+            Money left = income {formatCurrency(view.filipaSalary + view.joaoSalary, currency)} − spending{" "}
+            {formatCurrency(view.totalExpenses, currency)} − fixed expenses {formatCurrency(view.fixedExpensesTotal, currency)} −
+            savings {formatCurrency(view.savingsSetAside ?? Math.max(view.savingsGoalTarget, view.savingsActual), currency)}
+            {view.savingsActual > view.savingsGoalTarget ? " (what you saved, above the goal)" : " (your savings goal)"}.
+          </p>
 
           {otherCurrency && view.rateDate && (
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>

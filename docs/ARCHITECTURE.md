@@ -450,13 +450,16 @@ after Phase 0 testing:
   never detected from a transaction) shown as their own list so the
   money-left number is traceable to something other than "trust me".
 - **Money left** = `(filipaSalary + joaoSalary) − Σ(expenses) − Σfixed
-  expenses` — plainly income minus real spend, where `filipaSalary` is
-  your manual entry for the month if you gave one, else the auto-detected
-  "income"-category transaction total, else 0 (flagged on the Dashboard
-  as "not recorded" rather than silently treated as zero). The savings
-  goal is **not** subtracted here — it's a target you're compared against
-  via the savings meter, not a guaranteed outflow, so it shouldn't shrink
-  a number that's supposed to mean "what's actually left."
+  expenses − max(savings goal, actually saved)` — what you can still spend
+  after spending, fixed costs and the month's savings, where
+  `filipaSalary` is your manual entry for the month if you gave one, else
+  the auto-detected "income"-category transaction total, else 0 (flagged
+  on the Dashboard as "not recorded" rather than silently treated as
+  zero). The savings goal is set aside even before it's been moved; if
+  more than the goal was actually moved to savings, that larger amount is
+  used instead. Savings transfers are never counted as expenses, so
+  nothing is subtracted twice. (Changed at the user's request: it used
+  to leave the goal out.)
 - A transaction can be **deleted** outright (Transactions screen) — the
   Cloud Function trigger fires on delete too and recomputes the month it
   was counted in, so it drops out of every total, not just the visible

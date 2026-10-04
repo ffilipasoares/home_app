@@ -131,7 +131,8 @@ class DashboardView(TypedDict):
     fixedExpensesTotal: float
     savingsGoalTarget: float
     savingsActual: float
-    moneyLeft: float
+    savingsSetAside: float  # max(savingsGoalTarget, savingsActual): what money left subtracts for savings
+    moneyLeft: float  # income - expenses - fixed expenses - savingsSetAside
     unconvertedCount: int  # categorized transactions not converted into this currency yet
     # Rate from each currency into this view's currency, used for the
     # hand-entered values (salaries, fixed expenses, savings goal), and the
