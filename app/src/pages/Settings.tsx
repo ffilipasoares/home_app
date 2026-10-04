@@ -20,17 +20,27 @@ export function Settings() {
 
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
-  const [savedNote, setSavedNote] = useState<string | null>(null);
+  // Which section's Save was just pressed, to show "Saved." next to that button only.
+  const [savedSection, setSavedSection] = useState<string | null>(null);
 
   useEffect(() => subscribeUserSettings(uid, setSettings), [uid]);
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
 
-  async function handleSaveProfile() {
+  async function handleSave(section: string) {
     if (!settings) return;
     await saveUserSettings(uid, settings);
-    setSavedNote("Saved.");
-    setTimeout(() => setSavedNote(null), 2000);
+    setSavedSection(section);
+    setTimeout(() => setSavedSection(null), 2000);
   }
+
+  const saveButton = (section: string) => (
+    <div style={{ marginTop: 16 }}>
+      <button type="button" className="button" onClick={() => handleSave(section)}>
+        Save
+      </button>
+      {savedSection === section && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>Saved.</span>}
+    </div>
+  );
 
   function updateGoal(patch: Partial<SavingsGoal>) {
     if (!settings) return;
@@ -141,10 +151,7 @@ export function Settings() {
             The amount and currency he's actually paid, used for every month.
           </p>
         </div>
-        <button type="button" className="button" onClick={handleSaveProfile}>
-          Save
-        </button>
-        {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
+        {saveButton("salaries")}
       </div>
 
       <div className="card">
@@ -175,17 +182,20 @@ export function Settings() {
           </div>
         </div>
 
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
+          A target the Dashboard's savings meter compares what you saved against. It doesn't change money left.
+        </p>
+        {saveButton("savings")}
+      </div>
+
+      <div className="card">
         <FixedItemsEditor
           title="Fixed monthly expenses"
-          hint="For costs that never show up as a transaction in this account — e.g. rent paid from a different account. Assumed stable month to month, unlike income (see Dashboard) — if rent changes, just edit it here."
+          hint="Costs paid every month from another account, e.g. rent. They leave your money just the same, so they're subtracted from money left on the Dashboard, every month. If one changes, edit it here."
           items={settings.fixedExpenses}
           onChange={(fixedExpenses) => setSettings({ ...settings, fixedExpenses })}
         />
-
-        <button type="button" className="button" style={{ marginTop: 20 }} onClick={handleSaveProfile}>
-          Save
-        </button>
-        {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
+        {saveButton("fixed")}
       </div>
 
       <div className="card">

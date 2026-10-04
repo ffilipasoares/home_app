@@ -255,9 +255,8 @@ export function Dashboard() {
           </div>
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
             Money left = income {formatCurrency(view.filipaSalary + view.joaoSalary, currency)} − spending{" "}
-            {formatCurrency(view.totalExpenses, currency)} − fixed expenses {formatCurrency(view.fixedExpensesTotal, currency)} −
-            savings {formatCurrency(view.savingsSetAside ?? Math.max(view.savingsGoalTarget, view.savingsActual), currency)}
-            {view.savingsActual > view.savingsGoalTarget ? " (what you saved, above the goal)" : " (your savings goal)"}.
+            {formatCurrency(view.totalExpenses, currency)} − fixed expenses{" "}
+            {formatCurrency(view.fixedExpensesTotal, currency)}.
           </p>
 
           {otherCurrency && view.rateDate && (

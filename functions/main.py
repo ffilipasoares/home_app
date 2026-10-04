@@ -261,6 +261,34 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
         recompute_month(uid, before_month)
 
 
+# Settings that feed every month's totals. displayCurrency isn't here: both
+# currencies are already computed, so switching it needs no recalculation.
+_TOTALS_SETTINGS = ("fixedExpenses", "savingsGoal", "salaryCurrency", "joaoSalary")
+
+
+@firestore_fn.on_document_written(document="users/{uid}")
+def on_user_settings_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
+    """Saving fixed expenses, the savings goal or a salary setting in
+    Settings recalculates every month's dashboard; they apply to all months
+    and otherwise wouldn't show until each month's next transaction."""
+    uid = event.params["uid"]
+    before = (event.data.before.to_dict() if event.data.before else None) or {}
+    after = (event.data.after.to_dict() if event.data.after else None) or {}
+    if not after or all(before.get(f) == after.get(f) for f in _TOTALS_SETTINGS):
+        return
+    months = _months_with_dashboards(uid)
+    for month in months:
+        recompute_month(uid, month)
+    print(f"on_user_settings_write uid={uid}: recalculated {len(months)} month(s)")
+
+
+def _months_with_dashboards(uid: str) -> list[str]:
+    return sorted(
+        ref.id
+        for ref in firestore.client().collection("users").document(uid).collection("dashboards").list_documents()
+    )
+
+
 @firestore_fn.on_document_written(document="users/{uid}/monthlyIncome/{month}")
 def on_monthly_income_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     """Fires when a month's income (salary + any partner contribution) is

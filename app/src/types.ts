@@ -153,9 +153,7 @@ export type DashboardView = {
   fixedExpensesTotal: number;
   savingsGoalTarget: number;
   savingsActual: number;
-  /** What money left subtracts for savings: the goal, or what was actually saved if more. Absent on older dashboards. */
-  savingsSetAside?: number;
-  /** Income − expenses − fixed expenses − savingsSetAside. */
+  /** Income − expenses − fixed expenses. */
   moneyLeft: number;
   /** Categorized transactions not converted into this currency yet, so not in its totals. */
   unconvertedCount: number;

@@ -173,12 +173,11 @@ def _view(
     else:
         savings_goal_target = (savings_goal["value"] / 100) * total_income
 
-    # Money left is what you can still spend after spending, fixed expenses
-    # and the month's savings (decided by the user). Savings are the goal,
-    # or what was actually moved to savings if that's more. Savings
-    # transfers are never counted as spending, so this can't double-count.
-    savings_set_aside = max(savings_goal_target, savings_actual)
-    money_left = total_income - total_expenses - fixed_expenses_total - savings_set_aside
+    # Money left = income minus spending minus fixed expenses (costs paid
+    # from another account, e.g. rent, which leave the household's money
+    # just the same). The savings goal is separate: a target the savings
+    # meter compares against, not subtracted here.
+    money_left = total_income - total_expenses - fixed_expenses_total
 
     return {
         "currency": currency,
@@ -191,7 +190,6 @@ def _view(
         "fixedExpensesTotal": fixed_expenses_total,
         "savingsGoalTarget": savings_goal_target,
         "savingsActual": savings_actual,
-        "savingsSetAside": savings_set_aside,
         "moneyLeft": money_left,
         "unconvertedCount": unconverted_count,
         "rates": rates,
