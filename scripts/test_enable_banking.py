@@ -202,6 +202,58 @@ def cmd_fetch(args: argparse.Namespace) -> None:
     _pretty(requests.get(f"{API_BASE}/accounts/{args.account}/transactions", headers=headers), args.redact)
 
 
+def cmd_summary(args: argparse.Namespace) -> None:
+    """Pages through every transaction and prints only counts, codes and
+    dates (no names, amounts or free text), safe to share. It checks how
+    far back history goes, whether date_from and paging work, whether
+    entry_reference is unique, and which transaction types exist."""
+    from collections import Counter
+
+    headers = _auth_headers()
+    params = {"date_from": args.date_from} if args.date_from else {}
+    txs, pages = [], 0
+    while True:
+        r = requests.get(f"{API_BASE}/accounts/{args.account}/transactions", params=params, headers=headers)
+        if not r.ok:
+            print(f"Page {pages + 1} failed:")
+            _pretty(r, redact=True)
+            break
+        body = r.json()
+        pages += 1
+        txs.extend(body.get("transactions", []))
+        key = body.get("continuation_key")
+        if not key:
+            break
+        params = {**params, "continuation_key": key}
+
+    def has(t, party):
+        return bool((t.get(party) or {}).get("name"))
+
+    refs = [t.get("entry_reference") for t in txs]
+    dates = sorted(t.get("booking_date") or t.get("value_date") or "" for t in txs)
+    print(f"date_from: {args.date_from or '(not set)'}")
+    print(f"pages: {pages}   transactions: {len(txs)}")
+    if not txs:
+        return
+    print(f"date range: {dates[0]} -> {dates[-1]}")
+    print(f"entry_reference: {len(set(refs))} unique of {len(refs)} ({sum(r is None for r in refs)} missing)")
+    print(f"status: {dict(Counter(t.get('status') for t in txs))}")
+    print(f"transaction currencies: {dict(Counter(t['transaction_amount']['currency'] for t in txs))}")
+    print("type (code, direction): count")
+    for (code, cdi), n in Counter(
+        ((t.get("bank_transaction_code") or {}).get("code"), t.get("credit_debit_indicator")) for t in txs
+    ).most_common():
+        print(f"  {code}, {cdi}: {n}")
+    for cdi in ("DBIT", "CRDT"):
+        group = [t for t in txs if t.get("credit_debit_indicator") == cdi]
+        if group:
+            print(
+                f"{cdi}: {len(group)} total, creditor.name set on {sum(has(t, 'creditor') for t in group)}, "
+                f"debtor.name set on {sum(has(t, 'debtor') for t in group)}, "
+                f"remittance_information set on {sum(bool(t.get('remittance_information')) for t in group)}"
+            )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -222,6 +274,11 @@ def main() -> None:
     p_fetch = sub.add_parser("fetch", help="Fetch balances + transactions for one account uid")
     p_fetch.add_argument("--account", required=True)
     p_fetch.set_defaults(func=cmd_fetch)
+
+    p_summary = sub.add_parser("summary", help="Page through all transactions and print counts only (safe to share)")
+    p_summary.add_argument("--account", required=True)
+    p_summary.add_argument("--date-from", help="YYYY-MM-DD, only fetch transactions from this date")
+    p_summary.set_defaults(func=cmd_summary)
 
     redact_help = "Hide names, IBANs, amounts and free text (use with a real bank before sharing the output)"
     for p in (p_exchange, p_fetch):

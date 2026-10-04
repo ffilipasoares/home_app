@@ -516,12 +516,32 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       /accounts/{uid}/transactions`. JWT auth: header `kid` = application
       ID, body `iss`/`aud` fixed strings + `iat`/`exp`, RS256-signed with
       the app's private key (`scripts/test_enable_banking.py` mirrors this
-      exactly). Not yet confirmed from the quick-start doc alone (to
-      verify empirically against the sandbox before relying on it in the
-      real sync function): the full field shape of each session account
-      (currency, IBAN — needed to tell the EUR pocket from the GBP one),
-      transaction-list pagination, and how a near-expiry consent is
-      detected/renewed.
+      exactly).
+
+      **Confirmed against the real Revolut account** (production
+      application in restricted mode, Account Information only; ASPSP
+      "Revolut", country PT; output shared redacted):
+      - One consent returns both the EUR and the GBP joint account (the
+        GBP one has UK account details but is reachable through the PT
+        entry). The individual account stays out when unticked.
+      - Session accounts carry `currency`, `uid` (new on every session)
+        and `identification_hash` (expected to be stable across sessions,
+        so accounts are keyed on it; to re-check on the first reconnect).
+      - Transactions: positive string `amount`, direction in
+        `credit_debit_indicator` (`DBIT`/`CRDT`); merchant in
+        `creditor.name` on debits, while `debtor.name` on debits is the
+        account holders and is never stored; `entry_reference` is a
+        36-char id (uniqueness still being checked); `status` `BOOK` or
+        `PDNG`; `bank_transaction_code.code` uses Revolut's own values
+        (`CARD_PAYMENT`, …); `merchant_category_code` is always null.
+      - 50 transactions per page, more via `continuation_key`.
+      - Balances are `ITAV` only (not stored by the app).
+
+      Still open: whether `date_from` narrows the transaction list, how
+      far back history goes, the full list of Revolut transaction codes
+      (in particular how EUR -> GBP moves show up), and whether a pending
+      transaction keeps its `entry_reference` once booked
+      (`scripts/test_enable_banking.py summary` covers the first three).
    3. **Connect flow + daily sync** — a "Connect Revolut" button
       (Settings), the consent redirect, and a scheduled Cloud Function
       (`@scheduler_fn.on_schedule` — not the Cloud Scheduler → Cloud Run
