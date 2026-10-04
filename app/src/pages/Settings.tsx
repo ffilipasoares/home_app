@@ -100,17 +100,51 @@ export function Settings() {
 
       <div className="card">
         <h2>Salaries</h2>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>Salaries are paid in</label>
+        <div className="field">
+          <label>Filipa's salary is paid in</label>
           <CurrencySelect
-            label="Salary currency"
+            label="Filipa's salary currency"
             value={settings.salaryCurrency ?? ENTRY_CURRENCY}
             onChange={(salaryCurrency) => setSettings({ ...settings, salaryCurrency })}
           />
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-            Both salaries on the Dashboard are entered and shown in this currency. Press Save below.
+            Detected from your transactions each month, or entered on the Dashboard.
           </p>
         </div>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>João's salary</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="number"
+              value={settings.joaoSalary?.amount ?? ""}
+              placeholder="Not set"
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  joaoSalary:
+                    e.target.value === ""
+                      ? null
+                      : { amount: Number(e.target.value), currency: settings.joaoSalary?.currency ?? ENTRY_CURRENCY },
+                })
+              }
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <CurrencySelect
+              label="João's salary currency"
+              value={settings.joaoSalary?.currency ?? ENTRY_CURRENCY}
+              onChange={(currency) =>
+                setSettings({ ...settings, joaoSalary: { amount: settings.joaoSalary?.amount ?? 0, currency } })
+              }
+            />
+          </div>
+          <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            The amount and currency he's actually paid, used for every month.
+          </p>
+        </div>
+        <button type="button" className="button" onClick={handleSaveProfile}>
+          Save
+        </button>
+        {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
       </div>
 
       <div className="card">

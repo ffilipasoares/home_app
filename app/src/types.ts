@@ -38,8 +38,10 @@ export type UserSettings = {
   fixedExpenses: FixedLineItem[];
   /** Which currency the Dashboard shows; remembered across devices. */
   displayCurrency?: DisplayCurrency;
-  /** The currency both salaries are paid and entered in; EUR if not set. */
+  /** The currency Filipa's salary is paid and entered in; EUR if not set. */
   salaryCurrency?: DisplayCurrency;
+  /** João's salary as he's actually paid it, the same every month. Unset: the older per-month Dashboard entry is used. */
+  joaoSalary?: { amount: number; currency: DisplayCurrency } | null;
 };
 
 /**

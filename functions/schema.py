@@ -29,10 +29,19 @@ class SavingsGoal(TypedDict, total=False):
     currency: str  # for type "fixed"; EUR if not set
 
 
+class MoneyAmount(TypedDict):
+    amount: float
+    currency: str
+
+
 class UserSettings(TypedDict, total=False):
     savingsGoal: SavingsGoal
     fixedExpenses: list[FixedLineItem]
-    salaryCurrency: str  # the currency both salaries are paid and entered in; EUR if not set
+    salaryCurrency: str  # the currency Filipa's salary is paid and entered in; EUR if not set
+    # João's salary: the amount and currency he's actually paid, the same
+    # every month. When unset, a per-month monthlyIncome.joaoSalary (in
+    # salaryCurrency) is used instead, as before.
+    joaoSalary: "MoneyAmount | None"
     displayCurrency: str  # which currency the Dashboard shows
 
 
@@ -43,7 +52,8 @@ class MonthlyIncome(TypedDict):
     # Always manual — João's salary never lands in this account, so
     # there's nothing to auto-detect.
     joaoSalary: float | None
-    # Both in UserSettings.salaryCurrency.
+    # Filipa's in UserSettings.salaryCurrency. joaoSalary here is only used
+    # when UserSettings.joaoSalary isn't set (older per-month entries).
 
 
 class CategoryRule(TypedDict):

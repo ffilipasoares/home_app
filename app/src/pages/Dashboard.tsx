@@ -56,9 +56,10 @@ function ConvertedHint({ value, from, view }: { value: number | null; from: Disp
 }
 
 /**
- * Both salaries are in the salary currency chosen in Settings. Filipa's
- * shows the salary detected from this month's transactions unless you type
- * your own amount; clearing the field goes back to the detected one.
+ * Filipa's salary is in the currency chosen in Settings and shows the salary
+ * detected from this month's transactions unless you type your own amount;
+ * clearing the field goes back to the detected one. João's salary is set in
+ * Settings (amount and currency) and only shown here.
  */
 function IncomeEditor({
   uid,
@@ -66,6 +67,7 @@ function IncomeEditor({
   salaryCurrency,
   salaryView,
   view,
+  joaoSetting,
 }: {
   uid: string;
   month: string;
@@ -74,6 +76,8 @@ function IncomeEditor({
   salaryView: DashboardView | null;
   /** The dashboard figures in the currency the Dashboard is showing. */
   view: DashboardView | null;
+  /** João's salary from Settings, if set (then it's not edited here). */
+  joaoSetting: { amount: number; currency: DisplayCurrency } | null;
 }) {
   const [income, setIncome] = useState<MonthlyIncome>({ filipaSalary: null, joaoSalary: null });
   // What's typed in each box; null until edited, so the saved/detected value shows.
@@ -92,7 +96,6 @@ function IncomeEditor({
   );
 
   const detected = salaryView && salaryView.autoDetectedFilipaSalary > 0 ? salaryView.autoDetectedFilipaSalary : null;
-  const usingDetected = income.filipaSalary === null && filipaDraft === null && detected !== null;
   const asText = (n: number | null) => (n === null ? "" : String(Math.round(n * 100) / 100));
   const parse = (raw: string) => (raw.trim() === "" ? null : Number(raw));
 
@@ -120,7 +123,7 @@ function IncomeEditor({
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
           <label>
-            Filipa's Salary ({symbol}){usingDetected && <> · detected from your transactions</>}
+            Filipa's Salary ({symbol})
           </label>
           <input
             type="number"
@@ -136,9 +139,21 @@ function IncomeEditor({
           <ConvertedHint value={filipaValue} from={salaryCurrency} view={view} />
         </div>
         <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
-          <label>João's Salary ({symbol})</label>
-          <input type="number" value={joaoShown} placeholder="Not recorded" onChange={(e) => setJoaoDraft(e.target.value)} />
-          <ConvertedHint value={joaoValue} from={salaryCurrency} view={view} />
+          <label>João's Salary</label>
+          {joaoSetting ? (
+            <>
+              <div style={{ padding: "10px 0", fontWeight: 600 }}>
+                {formatCurrency(joaoSetting.amount, joaoSetting.currency)}
+              </div>
+              <ConvertedHint value={joaoSetting.amount} from={joaoSetting.currency} view={view} />
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>Set in Settings.</div>
+            </>
+          ) : (
+            <>
+              <input type="number" value={joaoShown} placeholder="Set it in Settings" onChange={(e) => setJoaoDraft(e.target.value)} />
+              <ConvertedHint value={joaoValue} from={salaryCurrency} view={view} />
+            </>
+          )}
         </div>
       </div>
 
@@ -221,6 +236,7 @@ export function Dashboard() {
         salaryCurrency={salaryCurrency}
         salaryView={viewFor(dashboard, salaryCurrency)}
         view={view}
+        joaoSetting={settings?.joaoSalary ?? null}
       />
 
       {!dashboard && <p className="empty-state">No transactions imported for {month} yet.</p>}

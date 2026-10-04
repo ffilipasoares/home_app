@@ -77,7 +77,13 @@ def recompute_month(uid: str, month: str) -> None:
     # are in the salary currency chosen in Settings.
     salary_currency = settings_data.get("salaryCurrency") or HOME_CURRENCY
     filipa_manual = (manual_filipa_salary, salary_currency) if manual_filipa_salary is not None else None
-    joao = (joao_salary, salary_currency)
+    # João's salary is set once in Settings with its own currency; older
+    # months may only have a per-month entry, in Filipa's salary currency.
+    joao_setting = settings_data.get("joaoSalary")
+    if joao_setting and joao_setting.get("amount") is not None:
+        joao = (float(joao_setting["amount"]), joao_setting.get("currency") or HOME_CURRENCY)
+    else:
+        joao = (joao_salary, salary_currency)
     fixed = [(item["amount"], item.get("currency") or HOME_CURRENCY) for item in fixed_expenses]
 
     views: dict[str, DashboardView] = {}
