@@ -223,7 +223,7 @@ def bank_connect_start(req: https_fn.CallableRequest) -> dict:
         raise _bank_error(err) from err
 
 
-# The first sync imports ~90 days of history (and converts GBP amounts),
+# The first sync imports everything since 1 September (and converts GBP amounts),
 # which can take a while, hence the longer timeout. The app's callable
 # timeout is raised to match (app/src/lib/bank.ts).
 @https_fn.on_call(secrets=[ENABLE_BANKING_PRIVATE_KEY], timeout_sec=540)

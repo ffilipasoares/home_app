@@ -120,7 +120,8 @@ EUR_TXS = [
     tx("e2", "2026-09-26", "EUR", "2450.00", "CRDT", "TRANSFER", debtor="ACME PORTUGAL LDA", creditor=HOLDERS, remit="Vencimento"),
     tx("e3", "2026-09-20", "EUR", "200.00", "CRDT", "EXCHANGE", remit="Exchanged to EUR"),
     tx("e4", "2026-09-29", "EUR", "5.00", "DBIT", "CARD_PAYMENT", status="PDNG", creditor="Cafe"),
-    tx("e5", "2026-07-06", "EUR", "40.00", "DBIT", "TRANSFER", remit="To savings"),
+    tx("e5", "2026-09-05", "EUR", "40.00", "DBIT", "TRANSFER", remit="To savings"),
+    tx("e6", "2026-08-31", "EUR", "15.00", "DBIT", "CARD_PAYMENT", creditor="Before the cut-off"),
 ]
 GBP_TXS = [
     tx("g1", "2026-10-03", "GBP", "6.85", "DBIT", "CARD_PAYMENT", creditor="Pret A Manger", debtor=HOLDERS),
@@ -193,7 +194,8 @@ db.store["bankAuthStates/good"] = {"uid": UID, "createdAt": bank_sync._now_ms()}
 result = bank_sync.finish_connect(UID, "the-code", "good", client)
 check(f"summary {result}", result == {"accounts": 2, "imported": 6})
 check("state is single-use", "bankAuthStates/good" not in db.store)
-check("first sync asks for full history", client.calls == [("uid-eur", None), ("uid-gbp", None)])
+check("first sync starts at 1 September", client.calls == [("uid-eur", "2026-09-01"), ("uid-gbp", "2026-09-01")])
+check("nothing before 1 September imported, even if the bank returns it", "e6" not in {d.get("externalId") for d in txs().values()})
 
 accounts = {p: d for p, d in db.store.items() if p.startswith(f"users/{UID}/accounts/")}
 check("two account docs", len(accounts) == 2)

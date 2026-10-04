@@ -4,7 +4,7 @@ import { db, functions } from "../firebase";
 import type { AccountLink } from "../types";
 
 const CALLBACK_KEY = "bankCallbackSearch";
-// The first sync imports ~90 days of history; matches the functions'
+// The first sync imports everything since 1 September; matches the functions'
 // timeout_sec (functions/main.py).
 const LONG_CALL = { timeout: 540_000 };
 

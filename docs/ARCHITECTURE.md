@@ -560,7 +560,9 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       - Only settled (`BOOK`) transactions are imported; pending (`PDNG`)
         ones are skipped until they settle, so amounts never change after
         they appear.
-      - The first sync imports as much history as Revolut allows.
+      - Nothing booked before 1 September 2026 is imported (changed from
+        "as much history as Revolut allows" to keep the first import
+        small; `HISTORY_START` in `functions/bank_sync.py`).
    3. **Connect flow + daily sync — built, not yet deployed.** A
       "Bank connection" card in Settings (Connect/Reconnect Revolut, the
       linked accounts with last sync and consent expiry, Sync now). The
@@ -569,19 +571,18 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       `/bank-callback`, which the app turns into its `#/bank-callback`
       page (the app routes on the hash) and which calls
       `bank_connect_finish`. That checks the state, creates the session,
-      stores the accounts and imports the full history (~90 days for
-      Revolut) straight away. `daily_bank_sync`
+      stores the accounts and imports everything since 1 September 2026
+      straight away. `daily_bank_sync`
       (`@scheduler_fn.on_schedule`, 23:00 Europe/Lisbon) then re-reads the
       last few days for every account. Everything lands in the existing
       `transactions` collection, so the categorization agent and
       dashboard recompute handle it unchanged. Code:
       `functions/enable_banking.py`, `functions/bank_sync.py`,
       `functions/main.py`; offline test: `scripts/test_bank_sync.py`.
-      Known cost of the first import: ~400 transactions arriving at once
-      means ~400 categorization runs in parallel, so some may hit Vertex AI
-      rate limits and stay "needs review" for a manual tap, and the
-      per-write dashboard recompute reads past Firestore's 50k/day free
-      reads once (cents).
+      Known cost of the first import: every transaction since 1 September
+      arrives at once, so that many categorization runs start in
+      parallel; a few may hit Vertex AI rate limits and stay "needs
+      review" for a manual tap.
    4. **Consent-expiry handling** — a "reconnect Revolut" banner before
       the ~90-day PSD2 consent lapses.
 4. **Phase 3 (stretch) — conversational "ask your finances".** A chat

@@ -183,8 +183,8 @@ linked to it in the Enable Banking console) and its `.pem` private key.
    `functions/.env` only if yours differ.
 3. **Connect.** Settings → **Bank connection** → **Connect Revolut** →
    approve in Revolut, sharing the EUR and GBP joint accounts only. You
-   come back to the app, which imports about 90 days of history and
-   categorizes it over the next few minutes. On iPhone, Revolut may send
+   come back to the app, which imports everything booked since
+   1 September 2026 and categorizes it over the next few minutes. On iPhone, Revolut may send
    you back to Safari instead of the installed app; sign in there if
    asked and it finishes on its own (or do this step once from a
    laptop).

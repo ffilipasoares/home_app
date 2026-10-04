@@ -17,16 +17,20 @@ Sync rules (decided by the user, docs/ARCHITECTURE.md §11 Phase 2):
 - Revolut EXCHANGE transactions are moves between the EUR and GBP pockets
   of the same joint account: stored with internalTransfer=True and left out
   of every dashboard total.
-- The first sync after connecting imports everything the bank returns
-  (about 90 days for Revolut). Later runs re-read only the last few days
-  before the most recent booked date; transaction IDs are derived from the
-  bank's own entry_reference, so re-reading never creates duplicates.
+- Nothing booked before HISTORY_START (1 September 2026) is imported,
+  even though Revolut offers ~90 days: the first sync after connecting
+  starts there, which keeps the first import (and the burst of
+  categorization runs it triggers) small. Later runs re-read only the last
+  few days before the most recent booked date; transaction IDs are derived
+  from the bank's own entry_reference, so re-reading never creates
+  duplicates.
 
 Account holder names (debtor.name on a debit, creditor.name on a credit)
 and IBANs are never written to Firestore.
 """
 
 import hashlib
+import os
 import secrets
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -45,6 +49,8 @@ STATE_TTL_SECONDS = 30 * 60
 # Revolut sometimes books a transaction with an earlier booking_date than
 # ones already seen; re-reading a few days back catches those.
 RESYNC_OVERLAP_DAYS = 5
+# Earliest booking date ever imported (YYYY-MM-DD).
+HISTORY_START = os.environ.get("BANK_HISTORY_START", "2026-09-01")
 _BATCH_LIMIT = 450
 _GET_ALL_CHUNK = 300
 
@@ -166,7 +172,7 @@ def _parse_iso_ms(value: str | None) -> int | None:
 
 def finish_connect(uid: str, code: str, state: str, client: Client) -> dict:
     """Validates the state, creates the session, stores the accounts and
-    runs the first (full-history) sync. Returns a small summary for the UI."""
+    runs the first sync (everything since HISTORY_START). Returns a small summary for the UI."""
     db = firestore.client()
     state_ref = db.collection("bankAuthStates").document(state)
     state_doc = state_ref.get()
@@ -248,10 +254,10 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
         account_ref.update({"status": "reconnect-needed", "lastError": "Bank access expired."})
         return 0
 
-    date_from = None
+    date_from = HISTORY_START
     if not full_history and account.get("lastBookedDate"):
         start = date.fromisoformat(account["lastBookedDate"]) - timedelta(days=RESYNC_OVERLAP_DAYS)
-        date_from = start.isoformat()
+        date_from = max(start.isoformat(), HISTORY_START)
 
     now_ms = _now_ms()
     try:
@@ -264,7 +270,8 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
         account_ref.update(update)
         return 0
 
-    mapped = [tx for tx in (map_transaction(raw, key, now_ms) for raw in raws) if tx]
+    # Filtered here too, so the cut-off holds even if the bank ignores date_from.
+    mapped = [tx for tx in (map_transaction(raw, key, now_ms) for raw in raws) if tx and tx["date"] >= HISTORY_START]
     tx_col = user_ref.collection("transactions")
     existing = _existing_ids(tx_col, [tx["id"] for tx in mapped])
     new = [tx for tx in mapped if tx["id"] not in existing]
