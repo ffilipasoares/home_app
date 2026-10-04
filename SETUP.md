@@ -161,7 +161,9 @@ home screen like an installed app.
    missing Vertex AI permission, step 3). To catch up on a backlog right
    away (e.g. after the first bank import), run
    `scripts/categorize_backlog.py` (see its header): it keeps going until
-   every transaction is categorized and prints any error. A row stays a quiet
+   every transaction is categorized, fills in any missing EUR amounts for
+   GBP transactions, recalculates every month's dashboard, and prints any
+   error. A row stays a quiet
    one-line summary — tap
    **Edit** to recategorize, move it to a different budget month
    (salary paid in the last week of a month is moved to next month

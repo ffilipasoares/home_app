@@ -48,6 +48,7 @@ from categorize import CONFIDENCE_THRESHOLD, CategorizationError, categorize_tra
 from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
 from enable_banking import Client, EnableBankingError
+from fx import HOME_CURRENCY, rate_to_home_currency
 from schema import CategoryDef, Transaction
 
 firebase_admin.initialize_app()
@@ -157,6 +158,39 @@ def _categorize_safely(uid: str, tx_id: str, tx: Transaction) -> bool:
         return False
 
 
+def _ensure_home_amount(uid: str, tx_id: str, tx: dict) -> bool:
+    """Gives a foreign-currency transaction its EUR amount (amountHome) if
+    it doesn't have one yet, e.g. because the exchange-rate lookup failed
+    during the bank sync. Returns True if it wrote one. Without it, the
+    dashboard can't include the transaction in any total."""
+    if tx.get("amountHome") is not None or tx.get("currency", HOME_CURRENCY) == HOME_CURRENCY:
+        return False
+    rate = rate_to_home_currency(tx["currency"], tx["date"])
+    if rate is None:
+        return False
+    firestore.client().collection("users").document(uid).collection("transactions").document(tx_id).update(
+        {"amountHome": round(tx["amount"] * rate, 2)}
+    )
+    return True
+
+
+def _fill_missing_home_amounts(uid: str) -> dict:
+    """Retries the EUR conversion for every foreign-currency transaction
+    still without amountHome. Used by the nightly job and
+    scripts/categorize_backlog.py."""
+    tx_col = firestore.client().collection("users").document(uid).collection("transactions")
+    filled = failed = 0
+    for doc in tx_col.where(filter=FieldFilter("currency", "!=", HOME_CURRENCY)).stream():
+        tx = doc.to_dict() or {}
+        if tx.get("amountHome") is not None:
+            continue
+        if _ensure_home_amount(uid, doc.id, tx):
+            filled += 1
+        else:
+            failed += 1
+    return {"filled": filled, "failed": failed}
+
+
 def _awaiting_auto_category(tx: dict) -> bool:
     return (
         tx.get("category") is None
@@ -209,6 +243,9 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
         # (synchronous) handler outside any existing event loop, so this
         # always starts a fresh one rather than conflicting with one.
         _categorize_safely(uid, tx_id, after)
+
+    if after and _ensure_home_amount(uid, tx_id, after):
+        return  # that write fires this trigger again, which recomputes the month
 
     recompute_month(uid, month)
     # A transaction can be moved to a different budget month than its date
@@ -358,4 +395,5 @@ def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
     # failed earlier (and isn't brand new from this sync, which its trigger
     # is handling right now) gets another go, one at a time.
     for uid in _user_ids():
+        print(f"daily_bank_sync EUR amounts uid={uid}: {_fill_missing_home_amounts(uid)}")
         print(f"daily_bank_sync catch-up uid={uid}: {_categorize_pending(uid, deadline)}")

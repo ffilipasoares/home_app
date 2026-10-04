@@ -50,6 +50,7 @@ def recompute_month(uid: str, month: str) -> None:
     savings_actual = 0.0
     total_expenses = 0.0
     needs_review_count = 0
+    unconverted_count = 0
     totals_by_category: dict[str, float] = {}
 
     for doc in tx_docs:
@@ -74,7 +75,11 @@ def recompute_month(uid: str, month: str) -> None:
             if tx.get("currency", HOME_CURRENCY) == HOME_CURRENCY:
                 amount_home = tx["amount"]
             else:
-                needs_review_count += 1
+                # Categorized, but its EUR amount isn't known yet; main.py
+                # fills it in. Counted separately from "needs a category"
+                # so the Dashboard doesn't send you looking for a missing
+                # category that isn't missing.
+                unconverted_count += 1
                 continue
 
         definition = category_by_id.get(tx["category"])
@@ -125,6 +130,7 @@ def recompute_month(uid: str, month: str) -> None:
         "savingsActual": savings_actual,
         "moneyLeft": money_left,
         "needsReviewCount": needs_review_count,
+        "unconvertedCount": unconverted_count,
         "updatedAt": int(time.time() * 1000),
     }
 

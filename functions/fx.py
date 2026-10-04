@@ -45,8 +45,10 @@ def rate_to_home_currency(currency: str, on_date: str) -> float | None:
     if currency == HOME_CURRENCY:
         return 1.0
     url = f"https://api.frankfurter.dev/v1/{on_date}?base={currency}&symbols={HOME_CURRENCY}"
+    # Some API front-ends reject urllib's default "Python-urllib" user agent.
+    req = urllib.request.Request(url, headers={"User-Agent": "home-finance-app/1.0", "Accept": "application/json"})
     try:
-        with urllib.request.urlopen(url, timeout=_TIMEOUT_SECONDS) as resp:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT_SECONDS) as resp:
             data = json.loads(resp.read())
         return float(data["rates"][HOME_CURRENCY])
     except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as err:

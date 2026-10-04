@@ -110,5 +110,6 @@ class DashboardDoc(TypedDict):
     savingsGoalTarget: float
     savingsActual: float
     moneyLeft: float
-    needsReviewCount: int
+    needsReviewCount: int  # transactions without a category yet
+    unconvertedCount: int  # categorized foreign-currency transactions still missing amountHome
     updatedAt: int

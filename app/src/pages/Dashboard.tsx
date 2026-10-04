@@ -99,6 +99,14 @@ export function Dashboard() {
         <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
       </div>
 
+      {dashboard && (dashboard.unconvertedCount ?? 0) > 0 && (
+        <div className="card" style={{ borderColor: "var(--status-warning)" }}>
+          {dashboard.unconvertedCount} foreign-currency transaction{dashboard.unconvertedCount === 1 ? " isn't" : "s aren't"} in
+          the totals yet: {dashboard.unconvertedCount === 1 ? "its" : "their"} EUR amount is still being looked up. This
+          fills in automatically.
+        </div>
+      )}
+
       {dashboard && dashboard.needsReviewCount > 0 && (
         <div className="card" style={{ borderColor: "var(--status-warning)" }}>
           <Link to="/transactions">

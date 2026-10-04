@@ -135,6 +135,9 @@ export type DashboardDoc = {
   savingsGoalTarget: number;
   savingsActual: number;
   moneyLeft: number;
+  /** Transactions without a category yet. */
   needsReviewCount: number;
+  /** Categorized foreign-currency (GBP) transactions whose EUR amount isn't known yet, so they're not in the totals. Absent on dashboards computed before this existed. */
+  unconvertedCount?: number;
   updatedAt: number;
 };
