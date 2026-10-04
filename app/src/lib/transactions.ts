@@ -8,8 +8,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
-import { db, functions } from "../firebase";
+import { db } from "../firebase";
 import { normalizeMerchant } from "./merchant";
 import type { Transaction } from "../types";
 
@@ -81,18 +80,6 @@ export async function updateTransactionMonth(uid: string, txId: string, month: s
   await writeBatch(db)
     .set(doc(transactionsCol(uid), txId), { month, updatedAt: Date.now() }, { merge: true })
     .commit();
-}
-
-export type CategorizePendingResult = { done: number; failed: number; remaining: number; lastError: string | null };
-
-/**
- * Has the AI categorize every transaction still waiting for a category, one
- * at a time on the server (functions/main.py, categorize_pending). Stops
- * after ~8 minutes and reports how many are left.
- */
-export async function categorizePending(): Promise<CategorizePendingResult> {
-  const call = httpsCallable<void, CategorizePendingResult>(functions, "categorize_pending", { timeout: 540_000 });
-  return (await call()).data;
 }
 
 /** Removes a transaction entirely — the Cloud Function trigger still fires on a delete and recomputes the month it was counted in, so it drops out of every total, not just the visible list. */

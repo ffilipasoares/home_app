@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import {
-  categorizePending,
   deleteTransaction,
   subscribeMonthTransactions,
   updateTransactionCategory,
@@ -18,48 +17,24 @@ import type { CategoryDef, Transaction } from "../types";
 // AI's category is still applied, but marked so you know to double-check.
 const AI_SURE_THRESHOLD = 0.7;
 
-function CategorizeBanner({ waiting }: { waiting: number }) {
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
-
-  async function run() {
-    setBusy(true);
-    setNote(null);
-    try {
-      const r = await categorizePending();
-      const parts = [`Categorized ${r.done}.`];
-      if (r.failed) parts.push(`${r.failed} failed${r.lastError ? `: ${r.lastError}` : "."}`);
-      if (r.remaining) parts.push(`${r.remaining} left, press again to continue.`);
-      setNote({ text: parts.join(" "), error: r.failed > 0 });
-    } catch (err) {
-      setNote({ text: err instanceof Error ? err.message : String(err), error: true });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (waiting === 0 && !note) return null;
+/**
+ * Categorization is automatic: each transaction is categorized as it
+ * arrives, and anything that failed is retried every 30 minutes
+ * (functions/main.py, retry_categorization). This only explains what's
+ * still waiting, and why, if the AI keeps failing.
+ */
+function WaitingNote({ transactions }: { transactions: Transaction[] }) {
+  const waiting = transactions.filter((tx) => tx.needsReview && !tx.category && !tx.internalTransfer);
+  if (waiting.length === 0) return null;
+  const error = waiting.find((tx) => tx.aiError)?.aiError;
   return (
-    <div className="card" style={{ borderColor: "var(--status-warning)" }}>
-      {waiting > 0 && (
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ flex: 1 }}>
-            {waiting} transaction{waiting === 1 ? " isn't" : "s aren't"} categorized yet.
-          </span>
-          <button type="button" className="button" disabled={busy} onClick={run}>
-            {busy ? "Categorizing…" : "Categorize with AI"}
-          </button>
-        </div>
-      )}
-      {busy && (
-        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-          One at a time, so this can take a few minutes. Keep the page open.
-        </p>
-      )}
-      {note && (
-        <p style={{ fontSize: 13, marginBottom: 0, color: note.error ? "var(--status-critical)" : "var(--status-good)" }}>
-          {note.text}
-        </p>
+    <div className="card" style={{ borderColor: error ? "var(--status-warning)" : undefined }}>
+      <p style={{ margin: 0 }}>
+        {waiting.length} transaction{waiting.length === 1 ? " is" : "s are"} waiting for the AI to categorize{" "}
+        {waiting.length === 1 ? "it" : "them"}. This retries automatically every 30 minutes.
+      </p>
+      {error && (
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>Last error: {error}</p>
       )}
     </div>
   );
@@ -81,7 +56,9 @@ function TransactionRow({
   // Needs-review rows open ready to act on; an already-confirmed
   // transaction stays a quiet, compact summary line until you ask to
   // edit it — no controls competing for attention on every single row.
-  const [expanded, setExpanded] = useState(tx.needsReview);
+  // Opens by default only for an older AI suggestion awaiting confirmation;
+  // a transaction still waiting for the AI needs nothing from you.
+  const [expanded, setExpanded] = useState(tx.needsReview && !!tx.category);
   const [category, setCategory] = useState(tx.category ?? "");
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const categoryDirty = category !== (tx.category ?? "");
@@ -102,7 +79,7 @@ function TransactionRow({
           {tx.merchantRaw}
           {tx.needsReview && !tx.internalTransfer && (
             <span className="badge" title={tx.aiError}>
-              {tx.category ? "confirm suggestion" : tx.aiError ? "AI couldn't categorize" : "not categorized yet"}
+              {tx.category ? "confirm suggestion" : tx.aiError ? "AI couldn't categorize yet" : "categorizing…"}
             </span>
           )}
           {tx.internalTransfer && <span className="badge">between your accounts · not counted</span>}
@@ -202,7 +179,7 @@ export function Transactions() {
         <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
       </div>
 
-      <CategorizeBanner waiting={transactions.filter((tx) => tx.needsReview && !tx.internalTransfer).length} />
+      <WaitingNote transactions={transactions} />
 
       {transactions.length === 0 && <p className="empty-state">No transactions for {month}.</p>}
 

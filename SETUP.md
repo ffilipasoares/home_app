@@ -156,9 +156,10 @@ home screen like an installed app.
    marked "AI not sure".
 4. **Transactions** → every row arrives categorized; change any category
    with **Edit** (that teaches the cache for next time). If the AI
-   couldn't categorize something (the row says so, with the reason on
-   hover), **Categorize with AI** at the top of the page retries
-   everything still waiting, one at a time. An already-confirmed row stays a quiet one-line summary — tap
+   couldn't categorize something, it's retried automatically every 30
+   minutes; the page says how many are waiting and, if it keeps failing,
+   why (e.g. a missing Vertex AI permission, step 3). A row stays a quiet
+   one-line summary — tap
    **Edit** to recategorize, move it to a different budget month
    (salary paid in the last week of a month is moved to next month
    automatically; this is for anything else that needs it), or **Delete**

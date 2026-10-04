@@ -81,7 +81,8 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
     the Transactions page. Only a confident answer teaches the cache, so an
     unsure guess is never reused as if it were confirmed. If the agent
     fails, the reason is saved as `aiError` (shown in the app, and it stops
-    the trigger from retrying in a loop); categorize_pending retries it.
+    the trigger from retrying in a loop); retry_categorization retries it
+    within half an hour.
     """
     db = firestore.client()
     tx_ref = db.collection("users").document(uid).collection("transactions").document(tx_id)
@@ -143,8 +144,8 @@ def _awaiting_auto_category(tx: dict) -> bool:
         and bool(tx.get("needsReview"))
         and not tx.get("internalTransfer")
         # A failed attempt records aiError on this same document, which
-        # fires the trigger again; don't retry in a loop (categorize_pending
-        # retries on request).
+        # fires the trigger again; don't retry in a loop (retry_categorization
+        # retries every 30 minutes).
         and not tx.get("aiError")
     )
 
@@ -210,42 +211,52 @@ def on_monthly_income_write(event: firestore_fn.Event[firestore_fn.Change]) -> N
     recompute_month(event.params["uid"], event.params["month"])
 
 
-# --- Categorize what's still uncategorized ------------------------------------
+# --- Automatic retry of anything still uncategorized -------------------------
 
-# Leaves room under the 540 s timeout to save the last answer and reply.
-_CATEGORIZE_BUDGET_SECONDS = 480
-
-
-@https_fn.on_call(timeout_sec=540)
-def categorize_pending(req: https_fn.CallableRequest) -> dict:
-    """The Transactions page's "Categorize with AI" button. Works through
-    every transaction still waiting for a category, newest first, one at a
-    time (so a backlog never hits the model's rate limit the way a burst of
-    triggers can), including ones a previous attempt failed on. Older AI
-    suggestions held for confirmation under the previous rules are accepted
-    as they are. Stops before the timeout and reports what's left; press
-    again to continue."""
-    return _categorize_pending(_require_owner(req))
+# Leaves room under the 540 s timeout to save the last answer.
+_RETRY_BUDGET_SECONDS = 480
+# A transaction this fresh is most likely still being categorized by its
+# own trigger; leave it alone so the two don't both call the model.
+_RETRY_MIN_AGE_MS = 10 * 60 * 1000
 
 
-def _categorize_pending(uid: str) -> dict:
+# Every 30 minutes: picks up whatever the per-transaction trigger couldn't
+# finish (a failed model call, a rate limit during a big bank import, or
+# transactions from before categorization worked), so nothing waits for a
+# button press. One transaction at a time, so it never causes the bursts
+# that made the trigger fail in the first place.
+@scheduler_fn.on_schedule(schedule="*/30 * * * *", timezone=scheduler_fn.Timezone("Europe/Lisbon"), timeout_sec=540)
+def retry_categorization(event: scheduler_fn.ScheduledEvent) -> None:
+    deadline = time.monotonic() + _RETRY_BUDGET_SECONDS
+    for user_doc in firestore.client().collection("users").stream():
+        result = _categorize_pending(user_doc.id, deadline)
+        if result["done"] or result["failed"]:
+            print(f"retry_categorization uid={user_doc.id}: {result}")
+
+
+def _categorize_pending(uid: str, deadline: float) -> dict:
+    """Categorizes every transaction still waiting for a category, newest
+    first, until `deadline` (time.monotonic()). Older AI suggestions held for
+    confirmation under the previous rules are accepted as they are."""
     db = firestore.client()
     tx_col = db.collection("users").document(uid).collection("transactions")
     pending = list(tx_col.where(filter=FieldFilter("needsReview", "==", True)).stream())
     pending.sort(key=lambda doc: (doc.to_dict() or {}).get("date", ""), reverse=True)
 
-    started = time.monotonic()
+    now_ms = int(time.time() * 1000)
     done = failed = 0
     last_error = None
     for i, doc in enumerate(pending):
-        if time.monotonic() - started > _CATEGORIZE_BUDGET_SECONDS:
+        if time.monotonic() > deadline:
             return {"done": done, "failed": failed, "remaining": len(pending) - i, "lastError": last_error}
         tx = doc.to_dict() or {}
         if tx.get("internalTransfer"):
             continue
         if tx.get("category"):
-            doc.reference.update({"needsReview": False, "updatedAt": int(time.time() * 1000)})
+            doc.reference.update({"needsReview": False, "updatedAt": now_ms})
             done += 1
+            continue
+        if not tx.get("aiError") and now_ms - int(tx.get("updatedAt") or 0) < _RETRY_MIN_AGE_MS:
             continue
         if asyncio.run(_auto_categorize(uid, doc.id, tx)):
             done += 1

@@ -134,9 +134,10 @@ cheap reliability trick instead of reaching for a bigger model:
   sure" and it doesn't teach the merchant cache. Implemented in
   `categorize.py` (model `gemini-3.5-flash-lite` on Vertex AI's global
   endpoint, retries on rate limits) and `main.py` → `_auto_categorize`;
-  a failure is saved as `aiError` on the transaction and retried by the
-  Transactions page's "Categorize with AI" button (`categorize_pending`,
-  one transaction at a time).
+  a failure is saved as `aiError` on the transaction (shown in the app)
+  and retried automatically by `retry_categorization`, a scheduled
+  function running every 30 minutes, one transaction at a time. No
+  manual step: categorization is part of the normal flow.
 - **Merchant-rule cache** (§5) means most transactions never hit the model
   at all after the first month, once recurring merchants (your supermarket,
   utility company, phone plan) are learned.
@@ -292,7 +293,7 @@ that requires judgment: a merchant with no exact match.
 | Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `main.py` → `_auto_categorize`, `category_rules.py` → `find_exact_category_rule` |
 | Agent run: optionally consult recent rules, then commit `{category, confidence}` | `categorize.py` → `categorize_transaction` |
 | Cache write — only on a confident fresh guess, so an unsure answer never becomes "ground truth" | `main.py` → `_auto_categorize` |
-| Retry anything still uncategorized, sequentially | `main.py` → `categorize_pending` |
+| Retry anything still uncategorized every 30 minutes, sequentially | `main.py` → `retry_categorization` |
 | Dashboard recompute — unchanged from Phase 0, just called again after a category lands | `dashboard.py` → `recompute_month` |
 
 This is also where ADK's structure was worth having in practice, not just
