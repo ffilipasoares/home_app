@@ -60,7 +60,7 @@ ENABLE_BANKING_PRIVATE_KEY = SecretParam("ENABLE_BANKING_PRIVATE_KEY")
 # Same single allow-listed account as firestore.rules and the app's
 # VITE_ALLOWED_EMAIL. Security rules don't cover callable functions, so
 # the check is repeated here.
-ALLOWED_EMAIL = os.environ.get("ALLOWED_EMAIL", "filipaferreirasoares12@gmail.com")
+ALLOWED_EMAIL = os.environ.get("ALLOWED_EMAIL", "filipaferreirasoares12@gmail.com").strip().strip("\"'").lower()
 
 
 def _load_categories(uid: str) -> list[CategoryDef]:
@@ -359,7 +359,7 @@ def _categorize_pending(uid: str, deadline: float, min_age_ms: int = _RETRY_MIN_
 def _require_owner(req: https_fn.CallableRequest) -> str:
     if req.auth is None:
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAUTHENTICATED, "Sign in first.")
-    if req.auth.token.get("email") != ALLOWED_EMAIL:
+    if (req.auth.token.get("email") or "").lower() != ALLOWED_EMAIL:
         raise https_fn.HttpsError(https_fn.FunctionsErrorCode.PERMISSION_DENIED, "Not allowed.")
     return req.auth.uid
 

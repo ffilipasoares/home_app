@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       if (!firebaseUser) {
         setStatus("signed-out");
-      } else if (firebaseUser.email !== ALLOWED_EMAIL) {
+      } else if ((firebaseUser.email ?? "").toLowerCase() !== ALLOWED_EMAIL) {
         setStatus("not-allowed");
       } else {
         setStatus("ready");

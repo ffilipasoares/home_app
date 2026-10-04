@@ -35,4 +35,9 @@ export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
 /** The only email allowed to use this app — set to your own address. */
-export const ALLOWED_EMAIL = import.meta.env.VITE_ALLOWED_EMAIL as string;
+// Compared case-insensitively and without surrounding spaces or quotes, so a
+// small formatting difference in .env.local can't lock you out.
+export const ALLOWED_EMAIL = String(import.meta.env.VITE_ALLOWED_EMAIL ?? "")
+  .trim()
+  .replace(/^["']|["']$/g, "")
+  .toLowerCase();
