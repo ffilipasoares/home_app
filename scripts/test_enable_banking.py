@@ -35,10 +35,12 @@ Env vars (every command needs the first two):
                                      application (never commit this file,
                                      never paste its contents anywhere)
     ENABLE_BANKING_REDIRECT_URL     defaults to
-                                     http://localhost:5173/bank-callback
+                                     https://home-app-1e7e3.web.app/bank-callback
                                      (must exactly match one of the
                                      redirect URLs registered on the
-                                     application)
+                                     application; production applications
+                                     only accept https URLs, so no
+                                     localhost there)
 
 Usage — run these one at a time, in order; steps 2-3 need you to actually
 complete a (fake, in sandbox) bank login in a browser in between:
@@ -160,7 +162,7 @@ def cmd_list_banks(args: argparse.Namespace) -> None:
 
 
 def cmd_connect(args: argparse.Namespace) -> None:
-    redirect_url = os.environ.get("ENABLE_BANKING_REDIRECT_URL", "http://localhost:5173/bank-callback")
+    redirect_url = os.environ.get("ENABLE_BANKING_REDIRECT_URL", "https://home-app-1e7e3.web.app/bank-callback")
     state = str(uuid.uuid4())
     body = {
         "access": {
