@@ -1,4 +1,5 @@
-import type { FixedLineItem } from "../types";
+import { CurrencySelect } from "./CurrencySelect";
+import { ENTRY_CURRENCY, type FixedLineItem } from "../types";
 
 export function FixedItemsEditor({
   title,
@@ -40,6 +41,7 @@ export function FixedItemsEditor({
             onChange={(e) => update(item.id, { amount: Number(e.target.value) })}
             style={{ width: 110 }}
           />
+          <CurrencySelect value={item.currency ?? ENTRY_CURRENCY} onChange={(currency) => update(item.id, { currency })} />
           <button type="button" className="button secondary" style={{ padding: "6px 10px" }} onClick={() => remove(item.id)}>
             ✕
           </button>

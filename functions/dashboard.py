@@ -11,9 +11,9 @@ EUR and GBP) into `views`, so the app can switch between them. Each
 transaction contributes its own amount in that currency (`amountIn`,
 converted at the rate for its date, unrounded), so a GBP purchase is exact
 in the GBP view and a EUR purchase exact in the EUR view. Values entered
-by hand (salaries, fixed expenses, savings goal) are in HOME_CURRENCY and
-are converted at one rate for the month: the last day of the month, or
-today for the current month. A transaction not converted into a currency
+by hand (salaries, fixed expenses, savings goal) each carry their own
+currency (EUR if not set) and are converted into the other at one rate
+for the month: the last day of the month, or today for the current month. A transaction not converted into a currency
 yet is left out of that currency's totals and counted in its
 `unconvertedCount` (main.py fills the amount in).
 """
@@ -73,20 +73,21 @@ def recompute_month(uid: str, month: str) -> None:
             continue
         counted.append(tx)
 
+    # Hand-entered values, each as (amount, its own currency).
+    filipa_manual = (
+        (manual_filipa_salary, income_data.get("filipaSalaryCurrency") or HOME_CURRENCY)
+        if manual_filipa_salary is not None
+        else None
+    )
+    joao = (joao_salary, income_data.get("joaoSalaryCurrency") or HOME_CURRENCY)
+    fixed = [(item["amount"], item.get("currency") or HOME_CURRENCY) for item in fixed_expenses]
+
     views: dict[str, DashboardView] = {}
     for currency in DISPLAY_CURRENCIES:
-        # HOME_CURRENCY -> this currency, for the hand-entered values.
-        manual_rate = get_rate(HOME_CURRENCY, currency, rate_date)
+        # Rate from each currency into this one, for the hand-entered values.
+        rates = {source: get_rate(source, currency, rate_date) for source in DISPLAY_CURRENCIES}
         views[currency] = _view(
-            currency,
-            counted,
-            category_by_id,
-            manual_rate,
-            rate_date,
-            manual_filipa_salary,
-            joao_salary,
-            fixed_expenses,
-            savings_goal,
+            currency, counted, category_by_id, rates, rate_date, filipa_manual, joao, fixed, savings_goal
         )
 
     home = views[HOME_CURRENCY]
@@ -96,7 +97,7 @@ def recompute_month(uid: str, month: str) -> None:
         "views": views,
         # The home-currency view again at the top level, as before views
         # existed, for any older copy of the app still cached on a device.
-        **{k: v for k, v in home.items() if k not in ("currency", "manualRate", "manualRateDate")},  # type: ignore[typeddict-item]
+        **{k: v for k, v in home.items() if k not in ("currency", "rates", "rateDate", "missingRate")},  # type: ignore[typeddict-item]
         "updatedAt": int(time.time() * 1000),
     }
     user_ref.collection("dashboards").document(month).set(dashboard)
@@ -106,11 +107,11 @@ def _view(
     currency: str,
     transactions: list[dict],
     category_by_id: dict[str, CategoryDef],
-    manual_rate: float | None,
+    rates: dict[str, float | None],
     rate_date: str,
-    manual_filipa_salary: float | None,
-    joao_salary: float,
-    fixed_expenses: list,
+    filipa_manual: tuple[float, str] | None,
+    joao: tuple[float, str],
+    fixed: list[tuple[float, str]],
     savings_goal: dict,
 ) -> DashboardView:
     auto_detected_salary = 0.0
@@ -138,24 +139,33 @@ def _view(
         totals_by_category[tx["category"]] = totals_by_category.get(tx["category"], 0.0) + spend
         total_expenses += spend
 
-    # Hand-entered values are in HOME_CURRENCY. If this month's rate can't
-    # be looked up right now they count as 0 in this view, and
-    # manualRate=None lets the app say so.
-    convert = (lambda v: v * manual_rate) if manual_rate is not None else (lambda v: 0.0)
+    # A hand-entered value in another currency whose rate can't be looked
+    # up right now counts as 0 in this view; missingRate lets the app say so.
+    missing_rate = False
+
+    def convert(amount: float, source: str) -> float:
+        nonlocal missing_rate
+        if amount == 0:
+            return 0.0
+        rate = rates.get(source)
+        if rate is None:
+            missing_rate = True
+            return 0.0
+        return amount * rate
 
     # The manual, per-month entry is authoritative when present (it's the
     # number you sat down and confirmed for this specific month) — it
     # doesn't add to the auto-detected figure, it replaces it, so a
     # categorized transaction and a manual entry never double-count.
-    filipa_salary = convert(manual_filipa_salary) if manual_filipa_salary is not None else auto_detected_salary
-    filipa_salary_source = "manual" if manual_filipa_salary is not None else ("auto" if auto_detected_salary > 0 else "none")
+    filipa_salary = convert(*filipa_manual) if filipa_manual is not None else auto_detected_salary
+    filipa_salary_source = "manual" if filipa_manual is not None else ("auto" if auto_detected_salary > 0 else "none")
 
-    fixed_expenses_total = convert(sum(item["amount"] for item in fixed_expenses))
-    joao = convert(joao_salary)
-    total_income = filipa_salary + joao
+    fixed_expenses_total = sum(convert(amount, source) for amount, source in fixed)
+    joao_salary = convert(*joao)
+    total_income = filipa_salary + joao_salary
 
     if savings_goal["type"] == "fixed":
-        savings_goal_target = convert(savings_goal["value"])
+        savings_goal_target = convert(savings_goal["value"], savings_goal.get("currency") or HOME_CURRENCY)
     else:
         savings_goal_target = (savings_goal["value"] / 100) * total_income
 
@@ -170,7 +180,7 @@ def _view(
         "filipaSalary": filipa_salary,
         "autoDetectedFilipaSalary": auto_detected_salary,
         "filipaSalarySource": filipa_salary_source,  # type: ignore[typeddict-item]
-        "joaoSalary": joao,
+        "joaoSalary": joao_salary,
         "totalsByCategory": totals_by_category,
         "totalExpenses": total_expenses,
         "fixedExpensesTotal": fixed_expenses_total,
@@ -178,6 +188,7 @@ def _view(
         "savingsActual": savings_actual,
         "moneyLeft": money_left,
         "unconvertedCount": unconverted_count,
-        "manualRate": manual_rate,
-        "manualRateDate": rate_date,
+        "rates": rates,
+        "rateDate": rate_date,
+        "missingRate": missing_rate,
     }

@@ -5,8 +5,10 @@
 
 export type SavingsGoal = {
   type: "fixed" | "percent";
-  /** A € amount when type is "fixed", or a 0-100 percent-of-income when "percent". */
+  /** An amount in `currency` when type is "fixed", or a 0-100 percent-of-income when "percent". */
   value: number;
+  /** For type "fixed"; EUR if not set. */
+  currency?: DisplayCurrency;
 };
 
 /**
@@ -21,12 +23,14 @@ export type FixedLineItem = {
   id: string;
   label: string;
   amount: number;
+  /** EUR if not set. */
+  currency?: DisplayCurrency;
 };
 
 /** The currencies the dashboard can be shown in (functions/fx.py, DISPLAY_CURRENCIES). */
 export const DISPLAY_CURRENCIES = ["EUR", "GBP"] as const;
 export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
-/** Salaries, fixed expenses and the savings goal are entered in this currency. */
+/** The default currency for hand-entered amounts (salaries, fixed expenses, savings goal) that don't say otherwise. */
 export const ENTRY_CURRENCY: DisplayCurrency = "EUR";
 
 export type UserSettings = {
@@ -47,6 +51,9 @@ export type MonthlyIncome = {
   filipaSalary: number | null;
   /** Always manual — João's salary never lands in this account, so there's nothing to auto-detect. */
   joaoSalary: number | null;
+  /** The currency each salary was entered in; EUR if not set. */
+  filipaSalaryCurrency?: DisplayCurrency;
+  joaoSalaryCurrency?: DisplayCurrency;
 };
 
 export type CategoryDef = {
@@ -148,12 +155,15 @@ export type DashboardView = {
   moneyLeft: number;
   /** Categorized transactions not converted into this currency yet, so not in its totals. */
   unconvertedCount: number;
-  /** ENTRY_CURRENCY -> this currency rate used for salaries, rent and the goal; null if it couldn't be looked up (they count as 0 then). */
-  manualRate: number | null;
-  manualRateDate: string;
+  /** Rate from each currency into this one, used for hand-entered values (salaries, fixed expenses, savings goal); null where it couldn't be looked up. */
+  rates: Partial<Record<DisplayCurrency, number | null>>;
+  /** The date those rates are for: the month's last day, or today for the current month. */
+  rateDate: string;
+  /** True if a hand-entered value counts as 0 in this view because its rate is missing. */
+  missingRate: boolean;
 };
 
-export type DashboardDoc = Partial<Omit<DashboardView, "currency" | "manualRate" | "manualRateDate">> & {
+export type DashboardDoc = Partial<Omit<DashboardView, "currency" | "rates" | "rateDate" | "missingRate">> & {
   month: string; // YYYY-MM
   /** Transactions without a category yet. */
   needsReviewCount: number;

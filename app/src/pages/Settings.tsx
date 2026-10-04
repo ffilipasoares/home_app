@@ -9,6 +9,8 @@ import {
 } from "../lib/settings";
 import { FixedItemsEditor } from "../components/FixedItemsEditor";
 import { BankConnectionCard } from "../components/BankConnectionCard";
+import { CurrencySelect } from "../components/CurrencySelect";
+import { ENTRY_CURRENCY } from "../types";
 import type { CategoryDef, SavingsGoal, UserSettings } from "../types";
 
 export function Settings() {
@@ -80,17 +82,27 @@ export function Settings() {
         <div className="field">
           <label>Savings goal type</label>
           <select value={settings.savingsGoal.type} onChange={(e) => updateGoal({ type: e.target.value as SavingsGoal["type"] })}>
-            <option value="fixed">Fixed € amount per month</option>
+            <option value="fixed">Fixed amount per month</option>
             <option value="percent">Percent of income</option>
           </select>
         </div>
         <div className="field">
-          <label>{settings.savingsGoal.type === "fixed" ? "Amount (€)" : "Percent (%)"}</label>
-          <input
-            type="number"
-            value={settings.savingsGoal.value}
-            onChange={(e) => updateGoal({ value: Number(e.target.value) })}
-          />
+          <label>{settings.savingsGoal.type === "fixed" ? "Amount" : "Percent (%)"}</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="number"
+              value={settings.savingsGoal.value}
+              onChange={(e) => updateGoal({ value: Number(e.target.value) })}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            {settings.savingsGoal.type === "fixed" && (
+              <CurrencySelect
+                label="Savings goal currency"
+                value={settings.savingsGoal.currency ?? ENTRY_CURRENCY}
+                onChange={(currency) => updateGoal({ currency })}
+              />
+            )}
+          </div>
         </div>
 
         <FixedItemsEditor

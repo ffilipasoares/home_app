@@ -10,8 +10,9 @@ import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
 import { CurrencySwitch } from "../components/CurrencySwitch";
+import { CurrencySelect } from "../components/CurrencySelect";
 import { formatCurrency } from "../lib/format";
-import { ENTRY_CURRENCY } from "../types";
+import { DISPLAY_CURRENCIES, ENTRY_CURRENCY } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, MonthlyIncome, UserSettings } from "../types";
 
 /**
@@ -37,13 +38,28 @@ function viewFor(dashboard: DashboardDoc | null, currency: DisplayCurrency): Das
     savingsActual: dashboard.savingsActual ?? 0,
     moneyLeft: dashboard.moneyLeft,
     unconvertedCount: dashboard.unconvertedCount ?? 0,
-    manualRate: 1,
-    manualRateDate: "",
+    rates: { EUR: 1 },
+    rateDate: "",
+    missingRate: false,
   };
 }
 
-// Salaries are entered in ENTRY_CURRENCY (EUR); the hint shows the detected salary in that currency too.
-function IncomeEditor({ uid, month, dashboard }: { uid: string; month: string; dashboard: DashboardView | null }) {
+/** "≈ £2,094.02" under an amount entered in another currency than the one shown. */
+function ConvertedHint({ value, from, view }: { value: number | null; from: DisplayCurrency; view: DashboardView | null }) {
+  if (value === null || !view || from === view.currency) return null;
+  const rate = view.rates[from];
+  return (
+    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+      {rate != null ? <>≈ {formatCurrency(value * rate, view.currency)}</> : <>{view.currency} rate unavailable right now</>}
+    </div>
+  );
+}
+
+/**
+ * Each salary is entered in its own currency (€ or £) and stored exactly as
+ * typed; the Dashboard's currency only changes how it's shown.
+ */
+function IncomeEditor({ uid, month, view }: { uid: string; month: string; view: DashboardView | null }) {
   const [income, setIncome] = useState<MonthlyIncome>({ filipaSalary: null, joaoSalary: null });
   const [savedNote, setSavedNote] = useState<string | null>(null);
 
@@ -55,34 +71,54 @@ function IncomeEditor({ uid, month, dashboard }: { uid: string; month: string; d
     setTimeout(() => setSavedNote(null), 2000);
   }
 
+  const filipaCurrency = income.filipaSalaryCurrency ?? ENTRY_CURRENCY;
+  const joaoCurrency = income.joaoSalaryCurrency ?? ENTRY_CURRENCY;
+  const parse = (raw: string) => (raw === "" ? null : Number(raw));
+
   return (
     <div className="card">
       <h2>Income — {month}</h2>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <div className="field" style={{ flex: "1 1 140px", marginBottom: 0 }}>
+        <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
           <label>
-            Filipa's Salary (€)
-            {dashboard && dashboard.autoDetectedFilipaSalary > 0 && (
-              <> (detected: {formatCurrency(dashboard.autoDetectedFilipaSalary, ENTRY_CURRENCY)})</>
+            Filipa's Salary
+            {view && view.autoDetectedFilipaSalary > 0 && (
+              <> (detected: {formatCurrency(view.autoDetectedFilipaSalary, view.currency)})</>
             )}
           </label>
-          <input
-            type="number"
-            value={income.filipaSalary ?? ""}
-            placeholder={dashboard?.autoDetectedFilipaSalary ? dashboard.autoDetectedFilipaSalary.toFixed(2) : "Not recorded"}
-            onChange={(e) =>
-              setIncome({ ...income, filipaSalary: e.target.value === "" ? null : Number(e.target.value) })
-            }
-          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="number"
+              value={income.filipaSalary ?? ""}
+              placeholder="Not recorded"
+              onChange={(e) => setIncome({ ...income, filipaSalary: parse(e.target.value) })}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <CurrencySelect
+              label="Filipa's salary currency"
+              value={filipaCurrency}
+              onChange={(c) => setIncome({ ...income, filipaSalaryCurrency: c })}
+            />
+          </div>
+          <ConvertedHint value={income.filipaSalary} from={filipaCurrency} view={view} />
         </div>
-        <div className="field" style={{ flex: "1 1 140px", marginBottom: 0 }}>
-          <label>João's Salary (€)</label>
-          <input
-            type="number"
-            value={income.joaoSalary ?? ""}
-            placeholder="Not recorded"
-            onChange={(e) => setIncome({ ...income, joaoSalary: e.target.value === "" ? null : Number(e.target.value) })}
-          />
+        <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
+          <label>João's Salary</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              type="number"
+              value={income.joaoSalary ?? ""}
+              placeholder="Not recorded"
+              onChange={(e) => setIncome({ ...income, joaoSalary: parse(e.target.value) })}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <CurrencySelect
+              label="João's salary currency"
+              value={joaoCurrency}
+              onChange={(c) => setIncome({ ...income, joaoSalaryCurrency: c })}
+            />
+          </div>
+          <ConvertedHint value={income.joaoSalary} from={joaoCurrency} view={view} />
         </div>
       </div>
 
@@ -91,7 +127,7 @@ function IncomeEditor({ uid, month, dashboard }: { uid: string; month: string; d
       </button>
       {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
 
-      {dashboard && dashboard.filipaSalarySource === "none" && (
+      {view && view.filipaSalarySource === "none" && (
         <p style={{ color: "var(--status-warning)", fontSize: 13, marginTop: 10, marginBottom: 0 }}>
           No salary recorded for Filipa this month yet — money left below excludes it until you add one.
         </p>
@@ -116,9 +152,13 @@ export function Dashboard() {
 
   const currency: DisplayCurrency = settings?.displayCurrency ?? ENTRY_CURRENCY;
   const view = viewFor(dashboard, currency);
-  const entryView = viewFor(dashboard, ENTRY_CURRENCY);
-  // Converts a value entered in EUR (rent) into the shown currency, at the month's rate.
-  const fromEntry = (value: number) => (view?.manualRate != null ? value * view.manualRate : null);
+  // Converts a hand-entered value (e.g. rent) from its own currency into the shown one, at the month's rate.
+  const convert = (value: number, from: DisplayCurrency) => {
+    const rate = view?.rates[from];
+    return rate != null ? value * rate : null;
+  };
+  const otherCurrency = DISPLAY_CURRENCIES.find((c) => c !== currency);
+  const otherRate = otherCurrency ? view?.rates[otherCurrency] : null;
 
   const categoryLabel = (id: string) => categories.find((c) => c.id === id)?.label ?? id;
 
@@ -156,7 +196,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <IncomeEditor uid={uid} month={month} dashboard={entryView} />
+      <IncomeEditor uid={uid} month={month} view={view} />
 
       {!dashboard && <p className="empty-state">No transactions imported for {month} yet.</p>}
 
@@ -173,17 +213,20 @@ export function Dashboard() {
             <StatTile label="Money left" value={view.moneyLeft} hero currency={currency} />
           </div>
 
-          {currency !== ENTRY_CURRENCY && (
+          {otherCurrency && view.rateDate && (
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
-              {view.manualRate != null ? (
+              {view.missingRate ? (
                 <>
-                  Salaries, rent and the savings goal are entered in €, shown here at 1 € ={" "}
-                  {view.manualRate.toLocaleString(undefined, { maximumFractionDigits: 6 })} £ (ECB rate,{" "}
-                  {view.manualRateDate}). Transactions use the rate for their own date.
+                  Some amounts you entered in {otherCurrency} aren't included right now: the exchange rate couldn't be
+                  looked up.
                 </>
-              ) : (
-                <>Salaries, rent and the savings goal aren't included in £ right now: the exchange rate couldn't be looked up.</>
-              )}
+              ) : otherRate != null ? (
+                <>
+                  Amounts you entered in {otherCurrency} are shown at 1 {otherCurrency} ={" "}
+                  {otherRate.toLocaleString(undefined, { maximumFractionDigits: 6 })} {currency} (ECB rate, {view.rateDate}).
+                  Transactions use the rate for their own date.
+                </>
+              ) : null}
             </p>
           )}
 
@@ -204,17 +247,18 @@ export function Dashboard() {
             <div className="card">
               <h2>Fixed monthly expenses</h2>
               {fixedExpenseItems.map((item) => {
-                const shown = fromEntry(item.amount);
+                const from = item.currency ?? ENTRY_CURRENCY;
+                const shown = convert(item.amount, from);
                 return (
                   <div key={item.id} className="tx-row">
                     <span>{item.label}</span>
                     <span className="tx-amount negative">
-                      {shown != null ? formatCurrency(-shown, currency) : formatCurrency(-item.amount, ENTRY_CURRENCY)}
+                      {shown != null ? formatCurrency(-shown, currency) : formatCurrency(-item.amount, from)}
                     </span>
                   </div>
                 );
               })}
-              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>Edit these in Settings (in €).</p>
+              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>Edit these in Settings.</p>
             </div>
           )}
         </>

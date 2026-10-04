@@ -389,9 +389,12 @@ Every transaction stores its amount in each display currency
 in the GBP view and a EUR purchase exact in the EUR view. The app shows
 every amount with cents. `functions/dashboard.py` computes the whole
 dashboard once per currency into `views`. Salaries, fixed expenses and the
-savings goal are entered in EUR and converted for the GBP view at one rate
-per month (its last day, or today for the current month), which the
-Dashboard states. A transaction not yet converted into a currency is left
+savings goal are each entered in their own currency (a € / £ choice next
+to each; `filipaSalaryCurrency`/`joaoSalaryCurrency` on monthlyIncome,
+`currency` on savingsGoal and each fixed expense; EUR if unset), stored
+exactly as typed, and converted into the other view at one rate per month
+(its last day, or today for the current month), which the Dashboard
+states. A transaction not yet converted into a currency is left
 out of that currency's totals and counted as `unconvertedCount`, never
 defaulted to zero; `main.py` fills the amount in on the next write and the
 nightly job retries. The older `amountHome` (EUR only) is still read as the

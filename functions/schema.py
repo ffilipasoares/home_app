@@ -16,15 +16,17 @@ class CategoryDef(TypedDict):
     special: NotRequired[Literal["income", "savings"]]
 
 
-class FixedLineItem(TypedDict):
+class FixedLineItem(TypedDict, total=False):
     id: str
     label: str
     amount: float
+    currency: str  # EUR if not set
 
 
-class SavingsGoal(TypedDict):
+class SavingsGoal(TypedDict, total=False):
     type: Literal["fixed", "percent"]
     value: float
+    currency: str  # for type "fixed"; EUR if not set
 
 
 class UserSettings(TypedDict):
@@ -39,6 +41,9 @@ class MonthlyIncome(TypedDict):
     # Always manual — João's salary never lands in this account, so
     # there's nothing to auto-detect.
     joaoSalary: float | None
+    # The currency each salary was entered in; EUR if not set.
+    filipaSalaryCurrency: NotRequired[str]
+    joaoSalaryCurrency: NotRequired[str]
 
 
 class CategoryRule(TypedDict):
@@ -118,11 +123,13 @@ class DashboardView(TypedDict):
     savingsActual: float
     moneyLeft: float
     unconvertedCount: int  # categorized transactions not converted into this currency yet
-    # HOME_CURRENCY -> currency rate used for the hand-entered values
-    # (salaries, fixed expenses, savings goal); None if it couldn't be
-    # looked up, in which case they count as 0 in this view.
-    manualRate: float | None
-    manualRateDate: str
+    # Rate from each currency into this view's currency, used for the
+    # hand-entered values (salaries, fixed expenses, savings goal), and the
+    # date it's for. None where it couldn't be looked up; missingRate is
+    # True if a hand-entered value counted as 0 because of that.
+    rates: dict[str, float | None]
+    rateDate: str
+    missingRate: bool
 
 
 class DashboardDoc(TypedDict, total=False):
