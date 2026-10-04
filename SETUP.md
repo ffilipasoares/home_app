@@ -156,9 +156,12 @@ home screen like an installed app.
    marked "AI not sure".
 4. **Transactions** → every row arrives categorized; change any category
    with **Edit** (that teaches the cache for next time). If the AI
-   couldn't categorize something, it's retried automatically every 30
-   minutes; the page says how many are waiting and, if it keeps failing,
-   why (e.g. a missing Vertex AI permission, step 3). A row stays a quiet
+   couldn't categorize something, the nightly job retries it; the page
+   says how many are waiting and, if it keeps failing, why (e.g. a
+   missing Vertex AI permission, step 3). To catch up on a backlog right
+   away (e.g. after the first bank import), run
+   `scripts/categorize_backlog.py` (see its header): it keeps going until
+   every transaction is categorized and prints any error. A row stays a quiet
    one-line summary — tap
    **Edit** to recategorize, move it to a different budget month
    (salary paid in the last week of a month is moved to next month

@@ -82,8 +82,7 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
     the Transactions page. Only a confident answer teaches the cache, so an
     unsure guess is never reused as if it were confirmed. If the agent
     fails, the reason is saved as `aiError` (shown in the app, and it stops
-    the trigger from retrying in a loop); retry_categorization retries it
-    within half an hour.
+    the trigger from retrying in a loop); the nightly job retries it.
     """
     db = firestore.client()
     tx_ref = db.collection("users").document(uid).collection("transactions").document(tx_id)
@@ -142,7 +141,7 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
 def _categorize_safely(uid: str, tx_id: str, tx: Transaction) -> bool:
     """Runs _auto_categorize and turns *any* unexpected failure (not just a
     model failure) into an `aiError` on the transaction, so it shows in the
-    app and the next scheduled retry picks it up, instead of crashing the
+    app and the nightly job retries it, instead of crashing the
     trigger or stopping the whole retry run on the first bad transaction."""
     try:
         return asyncio.run(_auto_categorize(uid, tx_id, tx))
@@ -164,8 +163,8 @@ def _awaiting_auto_category(tx: dict) -> bool:
         and bool(tx.get("needsReview"))
         and not tx.get("internalTransfer")
         # A failed attempt records aiError on this same document, which
-        # fires the trigger again; don't retry in a loop (retry_categorization
-        # retries every 30 minutes).
+        # fires the trigger again; don't retry in a loop (the nightly job
+        # retries it).
         and not tx.get("aiError")
     )
 
@@ -231,34 +230,29 @@ def on_monthly_income_write(event: firestore_fn.Event[firestore_fn.Change]) -> N
     recompute_month(event.params["uid"], event.params["month"])
 
 
-# --- Automatic retry of anything still uncategorized -------------------------
+# --- Catching up on anything still uncategorized -----------------------------
 
 # Leaves room under the 540 s timeout to save the last answer.
-_RETRY_BUDGET_SECONDS = 480
+_RUN_BUDGET_SECONDS = 480
 # A transaction this fresh is most likely still being categorized by its
 # own trigger; leave it alone so the two don't both call the model.
 _RETRY_MIN_AGE_MS = 10 * 60 * 1000
 
 
-# Every 30 minutes: picks up whatever the per-transaction trigger couldn't
-# finish (a failed model call, a rate limit during a big bank import, or
-# transactions from before categorization worked), so nothing waits for a
-# button press. One transaction at a time, so it never causes the bursts
-# that made the trigger fail in the first place.
-@scheduler_fn.on_schedule(schedule="*/30 * * * *", timezone=scheduler_fn.Timezone("Europe/Lisbon"), timeout_sec=540)
-def retry_categorization(event: scheduler_fn.ScheduledEvent) -> None:
-    deadline = time.monotonic() + _RETRY_BUDGET_SECONDS
-    users = list(firestore.client().collection("users").stream())
-    print(f"retry_categorization: checking {len(users)} user(s)")
-    for user_doc in users:
-        result = _categorize_pending(user_doc.id, deadline)
-        print(f"retry_categorization uid={user_doc.id}: {result}")
+def _user_ids() -> list[str]:
+    """Every user with data. list_documents() also returns users/{uid}
+    entries that only exist as a parent of subcollections (no profile
+    document of their own), which stream() silently skips."""
+    return [ref.id for ref in firestore.client().collection("users").list_documents()]
 
 
-def _categorize_pending(uid: str, deadline: float) -> dict:
+def _categorize_pending(uid: str, deadline: float, min_age_ms: int = _RETRY_MIN_AGE_MS) -> dict:
     """Categorizes every transaction still waiting for a category, newest
-    first, until `deadline` (time.monotonic()). Older AI suggestions held for
-    confirmation under the previous rules are accepted as they are."""
+    first, one at a time, until `deadline` (time.monotonic()). Skips ones
+    updated less than `min_age_ms` ago that haven't failed (their own
+    trigger is on them). Older AI suggestions held for confirmation under
+    the previous rules are accepted as they are. Used by the nightly job
+    and by scripts/categorize_backlog.py."""
     db = firestore.client()
     tx_col = db.collection("users").document(uid).collection("transactions")
     pending = list(tx_col.where(filter=FieldFilter("needsReview", "==", True)).stream())
@@ -278,7 +272,7 @@ def _categorize_pending(uid: str, deadline: float) -> dict:
             doc.reference.update({"needsReview": False, "updatedAt": now_ms})
             done += 1
             continue
-        if not tx.get("aiError") and now_ms - int(tx.get("updatedAt") or 0) < _RETRY_MIN_AGE_MS:
+        if not tx.get("aiError") and now_ms - int(tx.get("updatedAt") or 0) < min_age_ms:
             continue
         started = time.monotonic()
         if _categorize_safely(uid, doc.id, tx):
@@ -358,4 +352,10 @@ def bank_sync_now(req: https_fn.CallableRequest) -> dict:
     timeout_sec=540,
 )
 def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
+    deadline = time.monotonic() + _RUN_BUDGET_SECONDS
     bank_sync.sync_all_users(_bank_client())
+    # Safety net, no separate scheduler: anything whose own categorization
+    # failed earlier (and isn't brand new from this sync, which its trigger
+    # is handling right now) gets another go, one at a time.
+    for uid in _user_ids():
+        print(f"daily_bank_sync catch-up uid={uid}: {_categorize_pending(uid, deadline)}")
