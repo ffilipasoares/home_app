@@ -135,7 +135,10 @@ def _view(
             auto_detected_salary += amount
             continue
         if special == "savings":
-            savings_actual += abs(amount)
+            # Net: money moved into savings counts (amount is negative, money
+            # out of this account); money taken back out of savings subtracts.
+            # abs() here used to count withdrawals as saving too.
+            savings_actual -= amount
             continue
         spend = abs(min(0.0, amount))  # only money out counts as an expense
         if spend == 0:
