@@ -10,7 +10,6 @@ import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
 import { CurrencySwitch } from "../components/CurrencySwitch";
-import { CurrencySelect } from "../components/CurrencySelect";
 import { formatCurrency } from "../lib/format";
 import { DISPLAY_CURRENCIES, ENTRY_CURRENCY } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, MonthlyIncome, UserSettings } from "../types";
@@ -58,24 +57,63 @@ function ConvertedHint({ value, from, view }: { value: number | null; from: Disp
 }
 
 /**
- * Each salary is entered in its own currency (€ or £) and stored exactly as
- * typed; the Dashboard's currency only changes how it's shown.
+ * Both salaries are in the salary currency chosen in Settings. Filipa's
+ * shows the salary detected from this month's transactions unless you type
+ * your own amount; clearing the field goes back to the detected one.
  */
-function IncomeEditor({ uid, month, view }: { uid: string; month: string; view: DashboardView | null }) {
+function IncomeEditor({
+  uid,
+  month,
+  salaryCurrency,
+  salaryView,
+  view,
+}: {
+  uid: string;
+  month: string;
+  salaryCurrency: DisplayCurrency;
+  /** The dashboard figures in the salary currency (for the detected salary). */
+  salaryView: DashboardView | null;
+  /** The dashboard figures in the currency the Dashboard is showing. */
+  view: DashboardView | null;
+}) {
   const [income, setIncome] = useState<MonthlyIncome>({ filipaSalary: null, joaoSalary: null });
+  // What's typed in each box; null until edited, so the saved/detected value shows.
+  const [filipaDraft, setFilipaDraft] = useState<string | null>(null);
+  const [joaoDraft, setJoaoDraft] = useState<string | null>(null);
   const [savedNote, setSavedNote] = useState<string | null>(null);
 
-  useEffect(() => subscribeMonthlyIncome(uid, month, setIncome), [uid, month]);
+  useEffect(
+    () =>
+      subscribeMonthlyIncome(uid, month, (next) => {
+        setIncome(next);
+        setFilipaDraft(null);
+        setJoaoDraft(null);
+      }),
+    [uid, month],
+  );
+
+  const detected = salaryView && salaryView.autoDetectedFilipaSalary > 0 ? salaryView.autoDetectedFilipaSalary : null;
+  const usingDetected = income.filipaSalary === null && filipaDraft === null && detected !== null;
+  const asText = (n: number | null) => (n === null ? "" : String(Math.round(n * 100) / 100));
+  const parse = (raw: string) => (raw.trim() === "" ? null : Number(raw));
+
+  const filipaShown = filipaDraft ?? (income.filipaSalary !== null ? asText(income.filipaSalary) : asText(detected));
+  const joaoShown = joaoDraft ?? asText(income.joaoSalary);
+  // Value used for the "≈" line: what's typed, else saved, else detected.
+  const filipaValue = filipaDraft !== null ? parse(filipaDraft) : (income.filipaSalary ?? detected);
+  const joaoValue = joaoDraft !== null ? parse(joaoDraft) : income.joaoSalary;
 
   async function handleSave() {
-    await saveMonthlyIncome(uid, month, income);
+    await saveMonthlyIncome(uid, month, {
+      // An untouched box keeps what was there; untouched detected stays automatic.
+      filipaSalary: filipaDraft !== null ? parse(filipaDraft) : income.filipaSalary,
+      joaoSalary: joaoDraft !== null ? parse(joaoDraft) : income.joaoSalary,
+    });
     setSavedNote("Saved.");
     setTimeout(() => setSavedNote(null), 2000);
   }
 
-  const filipaCurrency = income.filipaSalaryCurrency ?? ENTRY_CURRENCY;
-  const joaoCurrency = income.joaoSalaryCurrency ?? ENTRY_CURRENCY;
-  const parse = (raw: string) => (raw === "" ? null : Number(raw));
+  const symbol = salaryCurrency === "GBP" ? "£" : "€";
 
   return (
     <div className="card">
@@ -83,44 +121,25 @@ function IncomeEditor({ uid, month, view }: { uid: string; month: string; view: 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
           <label>
-            Filipa's Salary
-            {view && view.autoDetectedFilipaSalary > 0 && (
-              <> (detected: {formatCurrency(view.autoDetectedFilipaSalary, view.currency)})</>
-            )}
+            Filipa's Salary ({symbol}){usingDetected && <> · detected from your transactions</>}
           </label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              type="number"
-              value={income.filipaSalary ?? ""}
-              placeholder="Not recorded"
-              onChange={(e) => setIncome({ ...income, filipaSalary: parse(e.target.value) })}
-              style={{ flex: 1, minWidth: 0 }}
-            />
-            <CurrencySelect
-              label="Filipa's salary currency"
-              value={filipaCurrency}
-              onChange={(c) => setIncome({ ...income, filipaSalaryCurrency: c })}
-            />
-          </div>
-          <ConvertedHint value={income.filipaSalary} from={filipaCurrency} view={view} />
+          <input
+            type="number"
+            value={filipaShown}
+            placeholder="Not recorded"
+            onChange={(e) => setFilipaDraft(e.target.value)}
+          />
+          {income.filipaSalary !== null && filipaDraft === null && detected !== null && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+              Entered by you; detected was {formatCurrency(detected, salaryCurrency)}. Clear the box and save to use it.
+            </div>
+          )}
+          <ConvertedHint value={filipaValue} from={salaryCurrency} view={view} />
         </div>
         <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
-          <label>João's Salary</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              type="number"
-              value={income.joaoSalary ?? ""}
-              placeholder="Not recorded"
-              onChange={(e) => setIncome({ ...income, joaoSalary: parse(e.target.value) })}
-              style={{ flex: 1, minWidth: 0 }}
-            />
-            <CurrencySelect
-              label="João's salary currency"
-              value={joaoCurrency}
-              onChange={(c) => setIncome({ ...income, joaoSalaryCurrency: c })}
-            />
-          </div>
-          <ConvertedHint value={income.joaoSalary} from={joaoCurrency} view={view} />
+          <label>João's Salary ({symbol})</label>
+          <input type="number" value={joaoShown} placeholder="Not recorded" onChange={(e) => setJoaoDraft(e.target.value)} />
+          <ConvertedHint value={joaoValue} from={salaryCurrency} view={view} />
         </div>
       </div>
 
@@ -129,7 +148,7 @@ function IncomeEditor({ uid, month, view }: { uid: string; month: string; view: 
       </button>
       {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
 
-      {view && view.filipaSalarySource === "none" && (
+      {salaryView && salaryView.filipaSalarySource === "none" && (
         <p style={{ color: "var(--status-warning)", fontSize: 13, marginTop: 10, marginBottom: 0 }}>
           No salary recorded for Filipa this month yet — money left below excludes it until you add one.
         </p>
@@ -154,6 +173,7 @@ export function Dashboard() {
 
   const currency: DisplayCurrency = settings?.displayCurrency ?? ENTRY_CURRENCY;
   const view = viewFor(dashboard, currency);
+  const salaryCurrency: DisplayCurrency = settings?.salaryCurrency ?? ENTRY_CURRENCY;
   // Converts a hand-entered value (e.g. rent) from its own currency into the shown one, at the month's rate.
   const convert = (value: number, from: DisplayCurrency) => {
     const rate = view?.rates[from];
@@ -198,7 +218,13 @@ export function Dashboard() {
         </div>
       )}
 
-      <IncomeEditor uid={uid} month={month} view={view} />
+      <IncomeEditor
+        uid={uid}
+        month={month}
+        salaryCurrency={salaryCurrency}
+        salaryView={viewFor(dashboard, salaryCurrency)}
+        view={view}
+      />
 
       {!dashboard && <p className="empty-state">No transactions imported for {month} yet.</p>}
 

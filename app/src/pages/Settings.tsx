@@ -78,6 +78,21 @@ export function Settings() {
       <BankConnectionCard uid={uid} />
 
       <div className="card">
+        <h2>Salaries</h2>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Salaries are paid in</label>
+          <CurrencySelect
+            label="Salary currency"
+            value={settings.salaryCurrency ?? ENTRY_CURRENCY}
+            onChange={(salaryCurrency) => setSettings({ ...settings, salaryCurrency })}
+          />
+          <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
+            Both salaries on the Dashboard are entered and shown in this currency. Press Save below.
+          </p>
+        </div>
+      </div>
+
+      <div className="card">
         <h2>Savings goal</h2>
         <div className="field">
           <label>Savings goal type</label>

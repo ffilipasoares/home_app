@@ -41,7 +41,10 @@ MAX_EVENTS = 20
 _RETRY = types.HttpRetryOptions(attempts=6, initial_delay=2.0, max_delay=60.0, http_status_codes=[429, 500, 502, 503, 504])
 
 _SPECIAL_HINTS = {
-    "income": "salary or other income received",
+    # Only pay from an employer: money arriving from people, from your own
+    # accounts, card top-ups, refunds or cashback is not salary, and filing
+    # it here inflates the salary the Dashboard detects.
+    "income": "salary or wages paid by an employer only; NOT transfers from people or your own accounts, top-ups, refunds or cashback",
     "savings": "money moved to savings or investments (e.g. a broker such as Trading 212)",
 }
 

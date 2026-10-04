@@ -12,7 +12,7 @@ transaction contributes its own amount in that currency (`amountIn`,
 converted at the rate for its date, unrounded), so a GBP purchase is exact
 in the GBP view and a EUR purchase exact in the EUR view. Values entered
 by hand (salaries, fixed expenses, savings goal) each carry their own
-currency (EUR if not set) and are converted into the other at one rate
+currency (salaries: the salary currency in Settings; EUR if not set) and are converted into the other at one rate
 for the month: the last day of the month, or today for the current month. A transaction not converted into a currency
 yet is left out of that currency's totals and counted in its
 `unconvertedCount` (main.py fills the amount in).
@@ -73,13 +73,11 @@ def recompute_month(uid: str, month: str) -> None:
             continue
         counted.append(tx)
 
-    # Hand-entered values, each as (amount, its own currency).
-    filipa_manual = (
-        (manual_filipa_salary, income_data.get("filipaSalaryCurrency") or HOME_CURRENCY)
-        if manual_filipa_salary is not None
-        else None
-    )
-    joao = (joao_salary, income_data.get("joaoSalaryCurrency") or HOME_CURRENCY)
+    # Hand-entered values, each as (amount, its own currency). Both salaries
+    # are in the salary currency chosen in Settings.
+    salary_currency = settings_data.get("salaryCurrency") or HOME_CURRENCY
+    filipa_manual = (manual_filipa_salary, salary_currency) if manual_filipa_salary is not None else None
+    joao = (joao_salary, salary_currency)
     fixed = [(item["amount"], item.get("currency") or HOME_CURRENCY) for item in fixed_expenses]
 
     views: dict[str, DashboardView] = {}
