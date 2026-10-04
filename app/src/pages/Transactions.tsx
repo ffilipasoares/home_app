@@ -23,7 +23,7 @@ const AI_SURE_THRESHOLD = 0.7;
 
 /**
  * Categorization is automatic: each transaction is categorized as it
- * arrives, and anything that failed is retried by the nightly job
+ * arrives, and anything that failed is retried by the scheduled sync
  * (functions/main.py, daily_bank_sync). This only explains what's
  * still waiting, and why, if the AI keeps failing.
  */
@@ -35,7 +35,7 @@ function WaitingNote({ transactions }: { transactions: Transaction[] }) {
     <div className="card" style={{ borderColor: error ? "var(--status-warning)" : undefined }}>
       <p style={{ margin: 0 }}>
         {waiting.length} transaction{waiting.length === 1 ? " is" : "s are"} waiting for the AI to categorize{" "}
-        {waiting.length === 1 ? "it" : "them"}. Anything that failed is retried automatically tonight.
+        {waiting.length === 1 ? "it" : "them"}. Anything that failed is retried automatically at the next sync (13:00 or 23:00).
       </p>
       {error && (
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>Last error: {error}</p>
@@ -103,6 +103,11 @@ function TransactionRow({
             </span>
           )}
           {tx.internalTransfer && <span className="badge">between your accounts · not counted</span>}
+          {tx.pending && (
+            <span className="badge" title="Not settled by the bank yet. The amount can still change; it updates on the next sync.">
+              pending
+            </span>
+          )}
         </div>
         <div className="tx-date">
           {tx.date}

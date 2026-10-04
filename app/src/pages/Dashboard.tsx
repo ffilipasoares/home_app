@@ -252,6 +252,12 @@ export function Dashboard() {
             <StatTile label="Income this month" value={view.filipaSalary + view.joaoSalary} currency={currency} />
             <StatTile label="Money left" value={view.moneyLeft} hero currency={currency} />
           </div>
+          {(dashboard?.pendingCount ?? 0) > 0 && (
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
+              Includes {dashboard!.pendingCount} pending card payment{dashboard!.pendingCount === 1 ? "" : "s"} not settled
+              by the bank yet; amounts can still change slightly.
+            </p>
+          )}
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
             Money left = income {formatCurrency(view.filipaSalary + view.joaoSalary, currency)} − spending{" "}
             {formatCurrency(view.totalExpenses, currency)} − fixed expenses{" "}

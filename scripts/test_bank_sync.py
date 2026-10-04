@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Offline test of functions/bank_sync.py: the connect flow (state checks,
 account and secret storage) and the sync (booked-only, internal
-transfers, GBP conversion, no duplicates on re-sync, error handling,
+transfers, GBP conversion, pending payments (imported, then settled in
+place, replaced under a new reference, or removed when cancelled), no
+duplicates on re-sync, error handling,
 reconnect) against an in-memory Firestore stand-in and a fake Enable
 Banking client with Revolut-shaped transactions. No network, no
 credentials.
@@ -77,11 +79,22 @@ class Batch:
         self.ops = []
 
     def set(self, ref, data):
-        self.ops.append((ref, data))
+        self.ops.append(("set", ref, data))
+
+    def update(self, ref, data):
+        self.ops.append(("update", ref, data))
+
+    def delete(self, ref):
+        self.ops.append(("delete", ref, None))
 
     def commit(self):
-        for ref, data in self.ops:
-            ref.set(data)
+        for op, ref, data in self.ops:
+            if op == "set":
+                ref.set(data)
+            elif op == "update":
+                ref.update(data)
+            else:
+                ref.delete()
 
 
 class FakeDB:
@@ -195,7 +208,7 @@ except PermissionError:
 # 2. Connect + first sync
 db.store["bankAuthStates/good"] = {"uid": UID, "createdAt": bank_sync._now_ms()}
 result = bank_sync.finish_connect(UID, "the-code", "good", client)
-check(f"summary {result}", result == {"accounts": 2, "imported": 6})
+check(f"summary {result}", result == {"accounts": 2, "imported": 8})
 check("state is single-use", "bankAuthStates/good" not in db.store)
 check("first sync starts at 1 September", client.calls == [("uid-eur", "2026-09-01"), ("uid-gbp", "2026-09-01")])
 check("nothing before 1 September imported, even if the bank returns it", "e6" not in {d.get("externalId") for d in txs().values()})
@@ -210,7 +223,8 @@ check("bankSecrets parent doc exists (needed by the daily job)", f"bankSecrets/{
 
 t = txs()
 by_ref = {d["externalId"]: d for d in t.values()}
-check("pending transactions skipped", "e4" not in by_ref and "g3" not in by_ref)
+check("pending payments imported and marked", by_ref["e4"]["pending"] and by_ref["g3"]["pending"])
+check("settled payments not marked pending", by_ref["e1"]["pending"] is False)
 check("debit is negative", by_ref["e1"]["amount"] == -12.5)
 check("credit is positive", by_ref["e2"]["amount"] == 2450.0)
 check("merchant from creditor on debit", by_ref["e1"]["merchantRaw"] == "Pingo Doce Alvalade")
@@ -227,15 +241,35 @@ check("merchantNormalized", by_ref["e1"]["merchantNormalized"] == "PINGO DOCE AL
 eur_acc = next(a for a in accounts.values() if a["currency"] == "EUR")
 check("lastBookedDate ignores pending", eur_acc["lastBookedDate"] == "2026-09-28")
 
-# 3. Re-sync: no duplicates, overlap window, user edits preserved
+# 3. Re-sync: pending payments settle, change, get replaced or cancelled
+def doc_for(ref):
+    return next((d for d in txs().values() if d.get("externalId") == ref), None)
+
 first_id = next(i for i, d in t.items() if d["externalId"] == "e1")
 db.store[f"users/{UID}/transactions/{first_id}"]["category"] = "food"
+g3_id = next(i for i, d in t.items() if d["externalId"] == "g3")
+db.store[f"users/{UID}/transactions/{g3_id}"]["category"] = "groceries"  # categorized while pending
 client.calls.clear()
-GBP_TXS[2]["status"] = "BOOK"  # the pending Tesco payment has now settled
+GBP_TXS[2]["status"] = "BOOK"  # the pending Tesco payment settled...
+GBP_TXS[2]["transaction_amount"]["amount"] = "10.49"  # ...for a slightly different amount
+EUR_TXS.remove(next(x for x in EUR_TXS if x["entry_reference"] == "e4"))  # the pending café payment was cancelled
+EUR_TXS.append(tx("e7", "2026-09-30", "EUR", "20.00", "DBIT", "CARD_PAYMENT", status="PDNG", creditor="Cinema"))
 n = bank_sync.sync_user(UID, client)
-check(f"re-sync imports only the newly settled one ({n})", n == 1)
+check(f"re-sync imports only the new pending one ({n})", n == 1 and doc_for("e7")["pending"])
 check("re-sync uses date_from overlap", sorted(client.calls) == [("uid-eur", "2026-09-23"), ("uid-gbp", "2026-09-28")])
 check("user's category edit kept", db.store[f"users/{UID}/transactions/{first_id}"]["category"] == "food")
+g3 = db.store[f"users/{UID}/transactions/{g3_id}"]
+check("settled payment updated in place: not pending, final amount", g3["pending"] is False and g3["amount"] == -10.49)
+check("settled payment keeps its category", g3["category"] == "groceries")
+check("settled payment's converted amount updated", abs(g3["amountIn"]["EUR"] - (-10.49 * 1.17)) < 1e-9)
+check("cancelled pending payment removed", doc_for("e4") is None)
+
+# The pending cinema payment settles under a new reference.
+EUR_TXS.remove(next(x for x in EUR_TXS if x["entry_reference"] == "e7"))
+EUR_TXS.append(tx("e8", "2026-09-30", "EUR", "20.00", "DBIT", "CARD_PAYMENT", creditor="Cinema"))
+n = bank_sync.sync_user(UID, client)
+check("settled under a new reference: old pending removed, settled one added", n == 1 and doc_for("e7") is None and doc_for("e8")["pending"] is False)
+count_before_reconnect = len(txs())
 
 # 4. Errors
 client.fail = EnableBankingError(401, '{"error":"EXPIRED_SESSION"}')
@@ -259,7 +293,7 @@ accounts = {p: d for p, d in db.store.items() if p.startswith(f"users/{UID}/acco
 gbp = next(a for a in accounts.values() if a["currency"] == "GBP")
 check("unshared account marked disconnected", gbp["status"] == "disconnected")
 check("its secret deleted", len([p for p in db.store if p.startswith(f"bankSecrets/{UID}/accounts/")]) == 1)
-check("reconnect does not duplicate transactions", len(txs()) == 7)
+check("reconnect does not duplicate transactions", len(txs()) == count_before_reconnect)
 
 print("\nALL PASSED" if not failed else "\nSOME FAILED")
 sys.exit(1 if failed else 0)

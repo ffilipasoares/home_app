@@ -100,6 +100,8 @@ export type Transaction = {
    * categorized and never counted in any dashboard total.
    */
   internalTransfer?: boolean;
+  /** A card payment the bank hasn't settled yet; the next sync updates it (or removes it if cancelled). */
+  pending?: boolean;
   /** Entered by hand on the Transactions page (e.g. paid from another account), not imported. */
   addedManually?: boolean;
   /** Why the AI couldn't categorize this one (cleared once it succeeds). */
@@ -173,6 +175,8 @@ export type DashboardDoc = Partial<Omit<DashboardView, "currency" | "rates" | "r
   month: string; // YYYY-MM
   /** Transactions without a category yet. */
   needsReviewCount: number;
+  /** Card payments not settled yet; already included in the totals. */
+  pendingCount?: number;
   /** One per display currency. Absent on dashboards computed before multi-currency views. */
   views?: Partial<Record<DisplayCurrency, DashboardView>>;
   updatedAt: number;

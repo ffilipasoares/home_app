@@ -411,11 +411,11 @@ def bank_sync_now(req: https_fn.CallableRequest) -> dict:
     return {"imported": bank_sync.sync_user(uid, _bank_client())}
 
 
-# Once a day, late evening Lisbon time, so the day's card payments have
-# had time to settle. Pending transactions are skipped and picked up by a
-# later run once booked.
+# Twice a day (13:00 and 23:00 Lisbon time), as decided by the user. Open
+# banking allows up to 4 unattended reads a day. Pending card payments are
+# imported straight away and settled by a later run (bank_sync.py).
 @scheduler_fn.on_schedule(
-    schedule="0 23 * * *",
+    schedule="0 13,23 * * *",
     timezone=scheduler_fn.Timezone("Europe/Lisbon"),
     secrets=[ENABLE_BANKING_PRIVATE_KEY],
     timeout_sec=540,

@@ -22,7 +22,7 @@ category afterwards. Salary/other income is entered per
 month directly on the Dashboard, so reviewing an old month always shows
 what actually applied then.
 
-Phase 2 connects Revolut (via Enable Banking) for an automatic nightly
+Phase 2 connects Revolut (via Enable Banking) for an automatic twice-daily
 import of the EUR and GBP joint accounts, merged into one currency on the
 dashboard. The currency merge (step 1), the Enable Banking application
 (step 2, checked against the real account) and the connect flow plus
@@ -42,7 +42,7 @@ functions/   Cloud Functions (Python): an ADK categorization agent
              auto-categorizes each new transaction (exact-match cache,
              then the agent), learns from manual corrections, and
              recomputes the monthly dashboard on every transaction/income
-             write; the Revolut connection and nightly bank sync
+             write; the Revolut connection and twice-daily bank sync
              (enable_banking.py, bank_sync.py)
 scripts/     local test tools: the categorization agent, the Enable
              Banking API (test_enable_banking.py), the bank sync offline
@@ -56,6 +56,6 @@ SETUP.md     — how to deploy this to your own Firebase project
 
 - **Phase 2** — open banking sync (no more manual CSV export/upload).
   Steps 1-3 built (currency merge, Enable Banking application, connect
-  flow + nightly sync); step 4, a reconnect reminder before Revolut's
+  flow + twice-daily sync); step 4, a reconnect reminder before Revolut's
   access expires, is next.
 - **Phase 3 (stretch)** — a conversational "ask your finances" agent.

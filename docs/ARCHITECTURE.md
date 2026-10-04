@@ -582,9 +582,14 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       - Moves between the two joint accounts (e.g. EUR exchanged into the
         GBP account) are detected and left out of spending and income
         totals automatically, still visible in the Transactions list.
-      - Only settled (`BOOK`) transactions are imported; pending (`PDNG`)
-        ones are skipped until they settle, so amounts never change after
-        they appear.
+      - Pending (`PDNG`) card payments are imported straight away
+        (`pending: true`) and count in the totals; the Dashboard says how
+        many are pending. A later sync updates one in place when it
+        settles (amount, date; category kept) and deletes one the bank no
+        longer lists (cancelled, or settled under a new reference). This
+        replaced the original "settled only" rule at the user's request.
+      - The sync runs twice a day, 13:00 and 23:00 Europe/Lisbon (open
+        banking allows up to 4 unattended reads a day), plus Sync now.
       - Nothing booked before 1 September 2026 is imported (changed from
         "as much history as Revolut allows" to keep the first import
         small; `HISTORY_START` in `functions/bank_sync.py`).
@@ -598,8 +603,9 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       `bank_connect_finish`. That checks the state, creates the session,
       stores the accounts and imports everything since 1 September 2026
       straight away. `daily_bank_sync`
-      (`@scheduler_fn.on_schedule`, 23:00 Europe/Lisbon) then re-reads the
-      last few days for every account. Everything lands in the existing
+      (`@scheduler_fn.on_schedule`, 13:00 and 23:00 Europe/Lisbon) then
+      re-reads the last few days for every account, reaching back to the
+      oldest stored pending payment. Everything lands in the existing
       `transactions` collection, so the categorization agent and
       dashboard recompute handle it unchanged. Code:
       `functions/enable_banking.py`, `functions/bank_sync.py`,

@@ -76,8 +76,8 @@ export function BankConnectionCard({ uid }: { uid: string }) {
     <div className="card">
       <h2>Bank connection</h2>
       <p style={{ marginTop: 0, fontSize: 13, color: "var(--text-muted)" }}>
-        Read-only access to the Revolut accounts you choose, through Enable Banking. New settled transactions are
-        imported every night; moves between your own accounts aren't counted.
+        Read-only access to the Revolut accounts you choose, through Enable Banking. New transactions, including
+        pending card payments, are imported at 13:00 and 23:00; moves between your own accounts aren't counted.
       </p>
 
       {linked.map((account) => (

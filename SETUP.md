@@ -2,7 +2,7 @@
 
 Gets the Firestore data model, security rules, Cloud Functions (automatic
 categorization + dashboard recompute), and installable PWA running
-end-to-end, then (§10) connects Revolut for a nightly import. See
+end-to-end, then (§10) connects Revolut for an automatic import twice a day. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design.
 
 ## 1. Prerequisites
@@ -156,7 +156,7 @@ home screen like an installed app.
    marked "AI not sure".
 4. **Transactions** → every row arrives categorized; change any category
    with **Edit** (that teaches the cache for next time). If the AI
-   couldn't categorize something, the nightly job retries it; the page
+   couldn't categorize something, the next scheduled sync retries it; the page
    says how many are waiting and, if it keeps failing, why (e.g. a
    missing Vertex AI permission, step 3). To catch up on a backlog right
    away (e.g. after the first bank import), run
@@ -171,7 +171,7 @@ home screen like an installed app.
    it outright.
 5. **Dashboard** → updates within a couple of seconds of each save.
 
-## 10. Connect Revolut (automatic nightly import)
+## 10. Connect Revolut (automatic import, twice a day)
 
 Needs the Enable Banking **production** application from Phase 2 step 2
 (restricted mode, **Account Information only**, your Revolut accounts
@@ -193,7 +193,7 @@ linked to it in the Enable Banking console) and its `.pem` private key.
    cd app && npm run build && cd ..
    firebase deploy --only hosting
    ```
-   The first deploy of the nightly job turns on Cloud Scheduler (accept
+   The first deploy of the scheduled sync turns on Cloud Scheduler (accept
    if asked). The application ID, Revolut (PT) and the
    `https://home-app-1e7e3.web.app/bank-callback` redirect are defaults in
    `functions/enable_banking.py`; override them with
@@ -208,9 +208,11 @@ linked to it in the Enable Banking console) and its `.pem` private key.
    asked and it finishes on its own (or do this step once from a
    laptop).
 
-After that, settled transactions are imported every night at 23:00
-(Lisbon time); **Sync now** in Settings does the same on demand.
-Pending card payments appear once they settle. Moves between the EUR and
+After that, new transactions are imported twice a day, at 13:00 and
+23:00 (Lisbon time); **Sync now** in Settings does the same on demand.
+Card payments Revolut hasn't settled yet come in straight away, marked
+"pending", and count in the totals; the next sync updates them to the
+final amount (or removes them if cancelled). Moves between the EUR and
 GBP accounts are shown in Transactions but never counted. Revolut's
 access lasts about 90 days; Settings shows the date, and **Reconnect
 Revolut** renews it (nothing is imported twice).

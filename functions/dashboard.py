@@ -62,8 +62,11 @@ def recompute_month(uid: str, month: str) -> None:
     rate_date = _month_rate_date(month)
     counted = []
     needs_review_count = 0
+    pending_count = 0
     for doc in tx_docs:
         tx = doc.to_dict()
+        if tx.get("pending") and not tx.get("internalTransfer"):
+            pending_count += 1  # counted in the totals; the app says how many are pending
         # Money moved between the user's own accounts is neither spending
         # nor income (see bank_sync.py).
         if tx.get("internalTransfer"):
@@ -98,6 +101,7 @@ def recompute_month(uid: str, month: str) -> None:
     dashboard: DashboardDoc = {
         "month": month,
         "needsReviewCount": needs_review_count,
+        "pendingCount": pending_count,
         "views": views,
         # The home-currency view again at the top level, as before views
         # existed, for any older copy of the app still cached on a device.

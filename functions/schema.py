@@ -96,6 +96,7 @@ class Transaction(TypedDict, total=False):
     # EUR and GBP pockets). Never categorized, never counted in any total.
     internalTransfer: bool
     addedManually: bool  # entered by hand on the Transactions page, e.g. paid from another account
+    pending: bool  # a card payment the bank hasn't settled yet; updated or removed by the next sync
     createdAt: int
     updatedAt: int
 
@@ -148,6 +149,7 @@ class DashboardView(TypedDict):
 class DashboardDoc(TypedDict, total=False):
     month: str
     needsReviewCount: int  # transactions without a category yet
+    pendingCount: int  # card payments not settled yet (included in the totals)
     views: dict[str, DashboardView]  # one per display currency
     updatedAt: int
     # Plus the HOME_CURRENCY view's fields repeated at the top level, for

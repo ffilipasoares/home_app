@@ -12,8 +12,13 @@ Where things are stored:
   the user who started it. Also server-only.
 
 Sync rules (decided by the user, docs/ARCHITECTURE.md §11 Phase 2):
-- Only settled (BOOK) transactions are imported; pending ones are skipped
-  until a later run sees them booked.
+- Pending (PDNG) card payments are imported straight away, marked
+  pending: True, and count in the dashboard like any other (decided by the
+  user, replacing the earlier "settled only" rule). When a later sync sees
+  the same transaction settled (BOOK), it's updated in place (amount,
+  date, pending flag; the category is kept). A pending transaction that
+  no longer appears (cancelled, or settled under a different reference)
+  is deleted, so nothing is counted twice.
 - Revolut EXCHANGE transactions are moves between the EUR and GBP pockets
   of the same joint account: stored with internalTransfer=True and left out
   of every dashboard total.
@@ -110,8 +115,9 @@ def map_transaction(raw: dict, acc_key: str, now_ms: int) -> Transaction | None:
     """Turns one Enable Banking transaction into this app's Transaction,
     or None if it shouldn't be imported (yet). Pure: no I/O, so it's
     unit-testable against sample data. amountIn is added by the caller."""
-    if raw.get("status") != "BOOK":
-        return None
+    status = raw.get("status")
+    if status not in ("BOOK", "PDNG"):
+        return None  # cancelled, rejected, scheduled, ...
     tx_date = raw.get("booking_date") or raw.get("value_date") or raw.get("transaction_date")
     amount_info = raw.get("transaction_amount") or {}
     if not tx_date or amount_info.get("amount") is None or not amount_info.get("currency"):
@@ -136,6 +142,7 @@ def map_transaction(raw: dict, acc_key: str, now_ms: int) -> Transaction | None:
         # categorizes needsReview transactions without a category).
         "needsReview": not internal,
         "internalTransfer": internal,
+        "pending": status == "PDNG",
         "source": "bank-sync",
         "accountId": acc_key,
         "createdAt": now_ms,
@@ -227,18 +234,18 @@ def finish_connect(uid: str, code: str, state: str, client: Client) -> dict:
 # --- Sync ---------------------------------------------------------------------
 
 
-def _existing_ids(tx_col, ids: list[str]) -> set[str]:
+def _existing_docs(tx_col, ids: list[str]) -> dict[str, dict]:
     db = firestore.client()
-    found: set[str] = set()
+    found: dict[str, dict] = {}
     for start in range(0, len(ids), _GET_ALL_CHUNK):
         refs = [tx_col.document(tx_id) for tx_id in ids[start : start + _GET_ALL_CHUNK]]
-        found.update(snap.id for snap in db.get_all(refs) if snap.exists)
+        found.update({snap.id: snap.to_dict() or {} for snap in db.get_all(refs) if snap.exists})
     return found
 
 
 def sync_account(uid: str, key: str, client: Client, full_history: bool = False) -> int:
-    """Imports new booked transactions for one account. Returns how many
-    were written. Bank errors are recorded on the account doc (and, when
+    """Imports new transactions (settled and pending) for one account and
+    brings pending ones up to date. Returns how many new ones were written. Bank errors are recorded on the account doc (and, when
     the consent is gone, status becomes "reconnect-needed") rather than
     raised, so one bad account doesn't stop the others."""
     db = firestore.client()
@@ -254,10 +261,22 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
         account_ref.update({"status": "reconnect-needed", "lastError": "Bank access expired."})
         return 0
 
+    tx_col = user_ref.collection("transactions")
+    # Pending transactions stored earlier for this account: each must be
+    # re-read (settled, changed or gone), so the window reaches back to
+    # the oldest one.
+    stored_pending = {
+        doc.id: doc.to_dict() or {}
+        for doc in tx_col.where(filter=FieldFilter("accountId", "==", key))
+        .where(filter=FieldFilter("pending", "==", True))
+        .stream()
+    }
+
     date_from = HISTORY_START
     if not full_history and account.get("lastBookedDate"):
-        start = date.fromisoformat(account["lastBookedDate"]) - timedelta(days=RESYNC_OVERLAP_DAYS)
-        date_from = max(start.isoformat(), HISTORY_START)
+        start = (date.fromisoformat(account["lastBookedDate"]) - timedelta(days=RESYNC_OVERLAP_DAYS)).isoformat()
+        oldest_pending = min((p.get("date") or start for p in stored_pending.values()), default=start)
+        date_from = max(min(start, oldest_pending), HISTORY_START)
 
     now_ms = _now_ms()
     try:
@@ -272,9 +291,37 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
 
     # Filtered here too, so the cut-off holds even if the bank ignores date_from.
     mapped = [tx for tx in (map_transaction(raw, key, now_ms) for raw in raws) if tx and tx["date"] >= HISTORY_START]
-    tx_col = user_ref.collection("transactions")
-    existing = _existing_ids(tx_col, [tx["id"] for tx in mapped])
+    existing = _existing_docs(tx_col, [tx["id"] for tx in mapped])
     new = [tx for tx in mapped if tx["id"] not in existing]
+
+    # A stored pending transaction that has since settled or changed: update
+    # it in place, keeping the category and anything else the user set.
+    updates: dict[str, dict] = {}
+    for tx in mapped:
+        old = existing.get(tx["id"])
+        if not old or not old.get("pending"):
+            continue
+        if tx["pending"] and old.get("amount") == tx["amount"] and old.get("date") == tx["date"]:
+            continue  # still pending, nothing changed
+        patch = {
+            "pending": tx["pending"],
+            "amount": tx["amount"],
+            "date": tx["date"],
+            "amountIn": amounts_in(tx["amount"], tx["currency"], tx["date"]),
+            "updatedAt": now_ms,
+        }
+        # Follow a date change into another month, unless it was moved by
+        # hand or by the salary rule (month no longer matches its old date).
+        if old.get("month") == (old.get("date") or "")[:7]:
+            patch["month"] = tx["date"][:7]
+        updates[tx["id"]] = patch
+
+    # A stored pending transaction the bank no longer lists: cancelled, or
+    # settled under a new reference (which arrives in `new`). Remove it so
+    # nothing is counted twice. Skipped if the bank returned nothing at
+    # all, rather than wiping pending ones on an odd empty response.
+    seen = {tx["id"] for tx in mapped}
+    stale = [tx_id for tx_id in stored_pending if tx_id not in seen] if raws else []
 
     for tx in new:
         # The amount in every display currency (EUR and GBP), at this
@@ -282,13 +329,26 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
         # currency and date). Any that fails is filled in later by main.py.
         tx["amountIn"] = amounts_in(tx["amount"], tx["currency"], tx["date"])
 
-    for i in range(0, len(new), _BATCH_LIMIT):
+    writes = (
+        [("set", tx["id"], tx) for tx in new]
+        + [("update", tx_id, patch) for tx_id, patch in updates.items()]
+        + [("delete", tx_id, None) for tx_id in stale]
+    )
+    for i in range(0, len(writes), _BATCH_LIMIT):
         batch = db.batch()
-        for tx in new[i : i + _BATCH_LIMIT]:
-            batch.set(tx_col.document(tx["id"]), tx)
+        for op, tx_id, data in writes[i : i + _BATCH_LIMIT]:
+            ref = tx_col.document(tx_id)
+            if op == "set":
+                batch.set(ref, data)
+            elif op == "update":
+                batch.update(ref, data)
+            else:
+                batch.delete(ref)
         batch.commit()
+    if updates or stale:
+        print(f"sync_account uid={uid} account={key}: {len(updates)} pending updated, {len(stale)} pending removed")
 
-    booked_dates = [tx["date"] for tx in mapped]
+    booked_dates = [tx["date"] for tx in mapped if not tx["pending"]]
     last_booked = max([account.get("lastBookedDate") or "", *booked_dates]) or None
     account_ref.update(
         {
