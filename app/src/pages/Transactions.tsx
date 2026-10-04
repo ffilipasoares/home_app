@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import {
+  categorizePending,
   deleteTransaction,
   subscribeMonthTransactions,
   updateTransactionCategory,
@@ -12,6 +13,57 @@ import { currentMonth } from "../lib/month";
 import { MonthPicker } from "../components/MonthPicker";
 import { formatCurrency } from "../lib/format";
 import type { CategoryDef, Transaction } from "../types";
+
+// Matches CONFIDENCE_THRESHOLD in functions/categorize.py: below it the
+// AI's category is still applied, but marked so you know to double-check.
+const AI_SURE_THRESHOLD = 0.7;
+
+function CategorizeBanner({ waiting }: { waiting: number }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setNote(null);
+    try {
+      const r = await categorizePending();
+      const parts = [`Categorized ${r.done}.`];
+      if (r.failed) parts.push(`${r.failed} failed${r.lastError ? `: ${r.lastError}` : "."}`);
+      if (r.remaining) parts.push(`${r.remaining} left, press again to continue.`);
+      setNote({ text: parts.join(" "), error: r.failed > 0 });
+    } catch (err) {
+      setNote({ text: err instanceof Error ? err.message : String(err), error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (waiting === 0 && !note) return null;
+  return (
+    <div className="card" style={{ borderColor: "var(--status-warning)" }}>
+      {waiting > 0 && (
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ flex: 1 }}>
+            {waiting} transaction{waiting === 1 ? " isn't" : "s aren't"} categorized yet.
+          </span>
+          <button type="button" className="button" disabled={busy} onClick={run}>
+            {busy ? "Categorizing…" : "Categorize with AI"}
+          </button>
+        </div>
+      )}
+      {busy && (
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
+          One at a time, so this can take a few minutes. Keep the page open.
+        </p>
+      )}
+      {note && (
+        <p style={{ fontSize: 13, marginBottom: 0, color: note.error ? "var(--status-critical)" : "var(--status-good)" }}>
+          {note.text}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function TransactionRow({
   tx,
@@ -48,16 +100,18 @@ function TransactionRow({
       <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
         <div className="tx-merchant">
           {tx.merchantRaw}
-          {tx.needsReview && (
-            <span className="badge">{tx.category && tx.source === "auto" ? "confirm suggestion" : "needs review"}</span>
+          {tx.needsReview && !tx.internalTransfer && (
+            <span className="badge" title={tx.aiError}>
+              {tx.category ? "confirm suggestion" : tx.aiError ? "AI couldn't categorize" : "not categorized yet"}
+            </span>
           )}
           {tx.internalTransfer && <span className="badge">between your accounts · not counted</span>}
         </div>
         <div className="tx-date">
           {tx.date}
           {!expanded && categoryLabel && <> · {categoryLabel}</>}
-          {tx.category && tx.needsReview && tx.confidence !== undefined && (
-            <> · AI guess, {(tx.confidence * 100).toFixed(0)}% confident</>
+          {tx.category && tx.source === "auto" && tx.confidence !== undefined && tx.confidence < AI_SURE_THRESHOLD && (
+            <> · AI not sure ({(tx.confidence * 100).toFixed(0)}%)</>
           )}
         </div>
       </div>
@@ -147,6 +201,8 @@ export function Transactions() {
       <div className="field">
         <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
       </div>
+
+      <CategorizeBanner waiting={transactions.filter((tx) => tx.needsReview && !tx.internalTransfer).length} />
 
       {transactions.length === 0 && <p className="empty-state">No transactions for {month}.</p>}
 

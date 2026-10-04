@@ -83,6 +83,8 @@ export type Transaction = {
    * categorized and never counted in any dashboard total.
    */
   internalTransfer?: boolean;
+  /** Why the AI couldn't categorize this one (cleared once it succeeds). */
+  aiError?: string;
   createdAt: number;
   updatedAt: number;
 };

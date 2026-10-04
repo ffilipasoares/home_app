@@ -5,7 +5,8 @@ Four responsibilities, split across two triggers, all idempotent:
   1. Learn a merchant -> category rule when a human confirms one (a
      manual-edit).
   2. Auto-categorize a freshly-imported transaction that has no category
-     yet (see _auto_categorize) — this writes back to the same document,
+     yet (see _auto_categorize; the answer is always applied, and you can
+     edit it afterwards) — this writes back to the same document,
      which re-triggers on_transaction_write once more; the second pass
      sees `category` already set and skips straight to recompute, so this
      always terminates in exactly two invocations, never a loop.
@@ -37,11 +38,12 @@ import firebase_admin
 from firebase_admin import firestore
 from firebase_functions import firestore_fn, https_fn, scheduler_fn
 from firebase_functions.params import SecretParam
-from google.cloud.firestore_v1 import Increment
+from google.cloud.firestore_v1 import DELETE_FIELD, Increment
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 import bank_sync
 from budget_month import resolve_budget_month
-from categorize import CONFIDENCE_THRESHOLD, categorize_transaction
+from categorize import CONFIDENCE_THRESHOLD, CategorizationError, categorize_transaction
 from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
 from enable_banking import Client, EnableBankingError
@@ -68,16 +70,18 @@ def _special_for(categories: list[CategoryDef], category_id: str) -> str | None:
     return next((c.get("special") for c in categories if c["id"] == category_id), None)
 
 
-async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> None:
-    """Categorizes one freshly-imported transaction. An exact-match cache
-    hit (free, instant, purely deterministic — nothing to reason about)
-    short-circuits before the agent is ever invoked. Only a genuine cache
-    miss reaches the categorization agent (categorize.py) — high
-    confidence clears `needsReview` and teaches the cache; low confidence
-    still writes the guess as a pre-filled suggestion but leaves
-    `needsReview` set, so a human confirms it with one tap on Transactions
-    rather than picking from scratch. A failed/unclear run writes nothing
-    — the transaction just stays uncategorized for manual review.
+async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
+    """Categorizes one uncategorized transaction and saves the result.
+    Returns True on success.
+
+    An exact-match cache hit (free, instant, deterministic) short-circuits
+    before the agent is ever invoked. Otherwise the categorization agent
+    (categorize.py) decides, and its answer is always applied: the
+    transaction counts in the dashboard straight away and can be edited on
+    the Transactions page. Only a confident answer teaches the cache, so an
+    unsure guess is never reused as if it were confirmed. If the agent
+    fails, the reason is saved as `aiError` (shown in the app, and it stops
+    the trigger from retrying in a loop); categorize_pending retries it.
     """
     db = firestore.client()
     tx_ref = db.collection("users").document(uid).collection("transactions").document(tx_id)
@@ -94,33 +98,33 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> None:
                 "source": "auto",
                 "confidence": 1,
                 "month": month,
+                "aiError": DELETE_FIELD,
                 "updatedAt": now_ms,
             }
         )
-        return
+        return True
 
     recent_rules = list_recent_category_rules(uid)
-    result = await categorize_transaction(tx["merchantRaw"], tx["amount"], categories, recent_rules)
-    if result is None:
-        return
+    try:
+        result = await categorize_transaction(tx["merchantRaw"], tx["amount"], categories, recent_rules)
+    except CategorizationError as err:
+        tx_ref.update({"aiError": str(err), "updatedAt": now_ms})
+        return False
 
-    confident = result["confidence"] >= CONFIDENCE_THRESHOLD
     month = resolve_budget_month(tx["date"], tx["month"], _special_for(categories, result["category"]))
     tx_ref.update(
         {
             "category": result["category"],
-            "needsReview": not confident,
+            "needsReview": False,
             "source": "auto",
             "confidence": result["confidence"],
             "month": month,
+            "aiError": DELETE_FIELD,
             "updatedAt": now_ms,
         }
     )
 
-    # Only a confident fresh guess teaches the cache — an unconfirmed
-    # suggestion shouldn't get treated as ground truth for the next
-    # merchant that looks similar.
-    if confident:
+    if result["confidence"] >= CONFIDENCE_THRESHOLD:
         db.collection("users").document(uid).collection("categoryRules").document(tx["merchantNormalized"]).set(
             {
                 "merchantNormalized": tx["merchantNormalized"],
@@ -130,6 +134,19 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> None:
             },
             merge=True,
         )
+    return True
+
+
+def _awaiting_auto_category(tx: dict) -> bool:
+    return (
+        tx.get("category") is None
+        and bool(tx.get("needsReview"))
+        and not tx.get("internalTransfer")
+        # A failed attempt records aiError on this same document, which
+        # fires the trigger again; don't retry in a loop (categorize_pending
+        # retries on request).
+        and not tx.get("aiError")
+    )
 
 
 @firestore_fn.on_document_written(document="users/{uid}/transactions/{txId}")
@@ -167,7 +184,7 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
             },
             merge=True,
         )
-    elif after and after.get("category") is None and after.get("needsReview"):
+    elif after and _awaiting_auto_category(after):
         # asyncio.run() is safe here: Cloud Functions dispatches this
         # (synchronous) handler outside any existing event loop, so this
         # always starts a fresh one rather than conflicting with one.
@@ -191,6 +208,51 @@ def on_monthly_income_write(event: firestore_fn.Event[firestore_fn.Change]) -> N
     like on_transaction_write needs is necessary here.
     """
     recompute_month(event.params["uid"], event.params["month"])
+
+
+# --- Categorize what's still uncategorized ------------------------------------
+
+# Leaves room under the 540 s timeout to save the last answer and reply.
+_CATEGORIZE_BUDGET_SECONDS = 480
+
+
+@https_fn.on_call(timeout_sec=540)
+def categorize_pending(req: https_fn.CallableRequest) -> dict:
+    """The Transactions page's "Categorize with AI" button. Works through
+    every transaction still waiting for a category, newest first, one at a
+    time (so a backlog never hits the model's rate limit the way a burst of
+    triggers can), including ones a previous attempt failed on. Older AI
+    suggestions held for confirmation under the previous rules are accepted
+    as they are. Stops before the timeout and reports what's left; press
+    again to continue."""
+    return _categorize_pending(_require_owner(req))
+
+
+def _categorize_pending(uid: str) -> dict:
+    db = firestore.client()
+    tx_col = db.collection("users").document(uid).collection("transactions")
+    pending = list(tx_col.where(filter=FieldFilter("needsReview", "==", True)).stream())
+    pending.sort(key=lambda doc: (doc.to_dict() or {}).get("date", ""), reverse=True)
+
+    started = time.monotonic()
+    done = failed = 0
+    last_error = None
+    for i, doc in enumerate(pending):
+        if time.monotonic() - started > _CATEGORIZE_BUDGET_SECONDS:
+            return {"done": done, "failed": failed, "remaining": len(pending) - i, "lastError": last_error}
+        tx = doc.to_dict() or {}
+        if tx.get("internalTransfer"):
+            continue
+        if tx.get("category"):
+            doc.reference.update({"needsReview": False, "updatedAt": int(time.time() * 1000)})
+            done += 1
+            continue
+        if asyncio.run(_auto_categorize(uid, doc.id, tx)):
+            done += 1
+        else:
+            failed += 1
+            last_error = (doc.reference.get().to_dict() or {}).get("aiError")
+    return {"done": done, "failed": failed, "remaining": 0, "lastError": last_error}
 
 
 # --- Bank connection ----------------------------------------------------------

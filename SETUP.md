@@ -151,12 +151,14 @@ home screen like an installed app.
    mapping (it guesses date/description/amount from common header names,
    English and Portuguese) → Import. Each row is auto-categorized on
    arrival: a known merchant is instant and free (the learned-rules cache),
-   an unfamiliar one gets a Gemini call and either lands categorized or as
-   a pre-filled suggestion flagged "confirm suggestion".
-4. **Transactions** → a needs-review row opens with its category picker
-   ready; tap **Confirm** if the suggestion looks right, or change it
-   first if it doesn't — either way, that teaches the cache for next
-   time. An already-confirmed row stays a quiet one-line summary — tap
+   an unfamiliar one goes to the categorization agent (Gemini 3.5
+   Flash-Lite), whose answer is applied automatically; an unsure one is
+   marked "AI not sure".
+4. **Transactions** → every row arrives categorized; change any category
+   with **Edit** (that teaches the cache for next time). If the AI
+   couldn't categorize something (the row says so, with the reason on
+   hover), **Categorize with AI** at the top of the page retries
+   everything still waiting, one at a time. An already-confirmed row stays a quiet one-line summary — tap
    **Edit** to recategorize, move it to a different budget month
    (salary paid in the last week of a month is moved to next month
    automatically; this is for anything else that needs it), or **Delete**

@@ -16,8 +16,9 @@ still means uploading a CSV export by hand, but each row is now categorized
 automatically on arrival by a real ADK agent (`google-adk`, Python — `functions/categorize.py`)
 — an exact-match cache for known merchants, and for a new one, an agent
 that can consult how similar merchants were categorized before rather than
-guessing blind, with anything low-confidence left as a pre-filled
-suggestion you confirm with one tap. Salary/other income is entered per
+guessing blind (Gemini 3.5 Flash-Lite). Every answer is applied
+automatically, with unsure ones marked "AI not sure"; you can change any
+category afterwards. Salary/other income is entered per
 month directly on the Dashboard, so reviewing an old month always shows
 what actually applied then.
 

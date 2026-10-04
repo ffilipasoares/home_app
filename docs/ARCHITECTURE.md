@@ -120,20 +120,23 @@ Current Gemini lineup and pricing (per 1M tokens, input/output; Sep 2026):
 | Gemini 3.1 Pro | $2.00 | $12.00 | Overkill — reserve for nothing in this project |
 | Gemini 3.x Flash (3.5–3.8) | $0.75–$1.50 | $3.75–$7.50 | Good, but pricier than needed for pure classification |
 | **Gemini 3.5 Flash-Lite (GA)** | **$0.30** | **$2.50** | **Default for this project** |
-| Gemini 2.5 Flash-Lite | $0.10 | $0.40 | Fallback if Flash-Lite 3.5 proves unnecessary for accuracy |
+| Gemini 2.5 Flash-Lite | $0.10 | $0.40 | Retired by Vertex AI on 20 October 2026; not an option any more |
 
 **Recommendation:** **Gemini 3.5 Flash-Lite** for both statement parsing and
 categorization, called through Vertex AI (keeps everything in one GCP
 project/billing/IAM boundary, no separate API key to manage). Add one
 cheap reliability trick instead of reaching for a bigger model:
 
-- **Confidence-gated escalation** — the categorization tool asks for a
-  `confidence` field in its structured output; anything below a threshold
-  (or any transaction the merchant-rule cache and the model disagree on)
-  gets a second pass on a stronger model (Gemini 3.x Flash) or is simply
-  flagged `needs_review` and shown to you in the dashboard to confirm once.
-  At tens of transactions a month, this costs cents either way — the point
-  is to spend the extra tokens only where they change the answer.
+- **Confidence is recorded, not used as a gate** — the categorization
+  tool reports a `confidence`. The answer is applied automatically either
+  way (the user wants every transaction categorized without a confirm
+  step, and edits the odd wrong one); below 0.7 the app marks it "AI not
+  sure" and it doesn't teach the merchant cache. Implemented in
+  `categorize.py` (model `gemini-3.5-flash-lite` on Vertex AI's global
+  endpoint, retries on rate limits) and `main.py` → `_auto_categorize`;
+  a failure is saved as `aiError` on the transaction and retried by the
+  Transactions page's "Categorize with AI" button (`categorize_pending`,
+  one transaction at a time).
 - **Merchant-rule cache** (§5) means most transactions never hit the model
   at all after the first month, once recurring merchants (your supermarket,
   utility company, phone plan) are learned.
@@ -288,7 +291,8 @@ that requires judgment: a merchant with no exact match.
 |---|---|
 | Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `main.py` → `_auto_categorize`, `category_rules.py` → `find_exact_category_rule` |
 | Agent run: optionally consult recent rules, then commit `{category, confidence}` | `categorize.py` → `categorize_transaction` |
-| Cache write — only on a confident fresh guess, so an unconfirmed suggestion never becomes "ground truth" | `main.py` → `_auto_categorize` |
+| Cache write — only on a confident fresh guess, so an unsure answer never becomes "ground truth" | `main.py` → `_auto_categorize` |
+| Retry anything still uncategorized, sequentially | `main.py` → `categorize_pending` |
 | Dashboard recompute — unchanged from Phase 0, just called again after a category lands | `dashboard.py` → `recompute_month` |
 
 This is also where ADK's structure was worth having in practice, not just
