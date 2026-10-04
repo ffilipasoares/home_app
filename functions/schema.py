@@ -10,9 +10,9 @@ from typing import Literal, NotRequired, TypedDict
 class CategoryDef(TypedDict):
     id: str
     label: str
-    # Income and savings-transfer categories are excluded from
-    # totalsByCategory/totalExpenses — they feed the salary figure /
-    # savings-goal progress instead.
+    # "income" categories are excluded from spending and make up the
+    # detected salary. "savings" is only a hint for the categorization
+    # agent: the dashboard counts it as normal spending.
     special: NotRequired[Literal["income", "savings"]]
 
 
@@ -131,7 +131,6 @@ class DashboardView(TypedDict):
     totalExpenses: float
     fixedExpensesTotal: float
     savingsGoalTarget: float
-    savingsActual: float
     moneyLeft: float  # income - expenses - fixed expenses
     unconvertedCount: int  # categorized transactions not converted into this currency yet
     # Rate from each currency into this view's currency, used for the

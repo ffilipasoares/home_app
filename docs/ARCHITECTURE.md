@@ -361,7 +361,7 @@ users/{uid}/categoryRules/{merchantNormalized}
 users/{uid}/dashboards/{YYYY-MM}
   filipaSalary, autoDetectedFilipaSalary, filipaSalarySource: "manual"|"auto"|"none",
   joaoSalary, totalsByCategory: { [categoryId]: amount }, totalExpenses,
-  fixedExpensesTotal, savingsGoalTarget, savingsActual,
+  fixedExpensesTotal, savingsGoalTarget,
   moneyLeft, needsReviewCount, updatedAt
 ```
 
@@ -427,8 +427,13 @@ after Phase 0 testing:
 
 - Expenses by category (this month, from categorized transactions only),
   as a bar chart.
-- Savings goal progress: target for the month vs amount actually moved to
-  "Invest" — a comparison, not a deduction (see below).
+- Savings goal progress: **savings = money left at the end of the month**
+  (decided by the user), compared with the savings goal, which is how
+  much you want left. During the month the meter shows money left so far.
+  A savings/investment category (e.g. a Trading 212 transfer) is spending
+  like any other: it appears in the categories chart and comes off money
+  left. Its `special: "savings"` flag is only a hint for the
+  categorization agent.
 - Income editor, right on the Dashboard, for the month being viewed:
   **Filipa's Salary** and **João's Salary**, side by side, both editable
   — not a single salary field plus a generic "other income" list. Only
@@ -455,8 +460,9 @@ after Phase 0 testing:
   the same, and `filipaSalary` is your manual entry for the month if you
   gave one, else the auto-detected "income"-category transaction total,
   else 0 (flagged on the Dashboard as "not recorded" rather than silently
-  treated as zero). The savings goal is **not** subtracted: it's a
-  separate target the savings meter compares against. Changing fixed
+  treated as zero). Money left is also what you save that month; the
+  savings goal is **not** subtracted, it's the target money left is
+  compared against. Changing fixed
   expenses, the savings goal or a salary setting recalculates every month
   (`on_user_settings_write`).
 - A transaction can be **deleted** outright (Transactions screen) — the

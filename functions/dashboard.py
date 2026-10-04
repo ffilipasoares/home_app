@@ -119,7 +119,6 @@ def _view(
     savings_goal: dict,
 ) -> DashboardView:
     auto_detected_salary = 0.0
-    savings_actual = 0.0
     total_expenses = 0.0
     unconverted_count = 0
     totals_by_category: dict[str, float] = {}
@@ -134,12 +133,11 @@ def _view(
         if special == "income":
             auto_detected_salary += amount
             continue
-        if special == "savings":
-            # Net: money moved into savings counts (amount is negative, money
-            # out of this account); money taken back out of savings subtracts.
-            # abs() here used to count withdrawals as saving too.
-            savings_actual -= amount
-            continue
+        # A savings/investment transfer is treated like any other spending
+        # (decided by the user): it shows in the categories chart and comes
+        # off money left, because that money is no longer available to
+        # spend. What counts as "saved" is what's left at the end of the
+        # month, compared against the savings goal.
         spend = abs(min(0.0, amount))  # only money out counts as an expense
         if spend == 0:
             continue
@@ -176,10 +174,11 @@ def _view(
     else:
         savings_goal_target = (savings_goal["value"] / 100) * total_income
 
-    # Money left = income minus spending minus fixed expenses (costs paid
-    # from another account, e.g. rent, which leave the household's money
-    # just the same). The savings goal is separate: a target the savings
-    # meter compares against, not subtracted here.
+    # Money left = income minus spending (savings/investment transfers
+    # included) minus fixed expenses (costs paid from another account, e.g.
+    # rent, which leave the household's money just the same). It's what you
+    # save this month; the savings goal is how much you want it to be, and
+    # the Dashboard's savings meter compares the two.
     money_left = total_income - total_expenses - fixed_expenses_total
 
     return {
@@ -192,7 +191,6 @@ def _view(
         "totalExpenses": total_expenses,
         "fixedExpensesTotal": fixed_expenses_total,
         "savingsGoalTarget": savings_goal_target,
-        "savingsActual": savings_actual,
         "moneyLeft": money_left,
         "unconvertedCount": unconverted_count,
         "rates": rates,

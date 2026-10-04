@@ -35,7 +35,6 @@ function viewFor(dashboard: DashboardDoc | null, currency: DisplayCurrency): Das
     totalExpenses: dashboard.totalExpenses ?? 0,
     fixedExpensesTotal: dashboard.fixedExpensesTotal ?? 0,
     savingsGoalTarget: dashboard.savingsGoalTarget ?? 0,
-    savingsActual: dashboard.savingsActual ?? 0,
     moneyLeft: dashboard.moneyLeft,
     unconvertedCount: dashboard.unconvertedCount ?? 0,
     rates: { EUR: 1 },
@@ -278,7 +277,11 @@ export function Dashboard() {
 
           <div className="card">
             <h2>Savings goal</h2>
-            <SavingsMeter actual={view.savingsActual} target={view.savingsGoalTarget} currency={currency} />
+            <SavingsMeter actual={view.moneyLeft} target={view.savingsGoalTarget} currency={currency} />
+            <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
+              What you save is what's left at the end of the month (money left). During the month this shows how much is
+              left so far.
+            </p>
           </div>
 
           <div className="card">

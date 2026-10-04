@@ -183,7 +183,8 @@ export function Settings() {
         </div>
 
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-          A target the Dashboard's savings meter compares what you saved against. It doesn't change money left.
+          How much you want left at the end of each month. The Dashboard compares it with money left (income − spending
+          − fixed expenses). A savings or investment category is spending like any other.
         </p>
         {saveButton("savings")}
       </div>

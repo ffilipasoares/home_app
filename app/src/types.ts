@@ -61,9 +61,8 @@ export type CategoryDef = {
   id: string;
   label: string;
   /**
-   * Income and savings-transfer categories are excluded from
-   * totalsByCategory/totalExpenses — they feed the salary figure /
-   * savings-goal progress instead.
+   * "income": excluded from spending; makes up the detected salary.
+   * "savings": only a hint for the categorization agent; counted as normal spending.
    */
   special?: "income" | "savings";
 };
@@ -154,7 +153,6 @@ export type DashboardView = {
   totalExpenses: number;
   fixedExpensesTotal: number;
   savingsGoalTarget: number;
-  savingsActual: number;
   /** Income − expenses − fixed expenses. */
   moneyLeft: number;
   /** Categorized transactions not converted into this currency yet, so not in its totals. */
