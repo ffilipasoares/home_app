@@ -6,6 +6,7 @@ import { Transactions } from "./pages/Transactions";
 import { Import } from "./pages/Import";
 import { Settings } from "./pages/Settings";
 import { BankCallback } from "./pages/BankCallback";
+import { SelectedMonthProvider } from "./components/SelectedMonthProvider";
 
 export function App() {
   return (
@@ -15,6 +16,7 @@ export function App() {
           would also work, but this needs zero extra config either way. */}
       <HashRouter>
         <AuthGate>
+          <SelectedMonthProvider>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
@@ -22,6 +24,7 @@ export function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/bank-callback" element={<BankCallback />} />
           </Routes>
+          </SelectedMonthProvider>
         </AuthGate>
       </HashRouter>
     </AuthProvider>

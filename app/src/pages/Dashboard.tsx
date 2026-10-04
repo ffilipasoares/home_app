@@ -4,7 +4,7 @@ import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { saveMonthlyIncome, subscribeMonthlyIncome } from "../lib/monthlyIncome";
-import { currentMonth } from "../lib/month";
+import { useSelectedMonth } from "../lib/selectedMonth";
 import { MonthPicker } from "../components/MonthPicker";
 import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
@@ -173,7 +173,7 @@ function IncomeEditor({
 export function Dashboard() {
   const { user } = useAuth();
   const uid = user!.uid;
-  const [month, setMonth] = useState(currentMonth());
+  const { month, setMonth } = useSelectedMonth();
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [dashboard, setDashboard] = useState<DashboardDoc | null>(null);
   const [categories, setCategories] = useState<CategoryDef[]>([]);

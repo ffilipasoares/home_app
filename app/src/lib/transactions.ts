@@ -54,6 +54,15 @@ export function subscribeMonthTransactions(
   );
 }
 
+/** Every transaction, newest first: for searching across all months (a household's volume is small). */
+export function subscribeAllTransactions(uid: string, cb: (transactions: Transaction[]) => void) {
+  return onSnapshot(
+    query(transactionsCol(uid), orderBy("date", "desc")),
+    (snap) => cb(snap.docs.map((d) => d.data() as Transaction)),
+    (err) => console.error("subscribeAllTransactions failed", err),
+  );
+}
+
 /** Manual category edit from the Transactions screen — the Cloud Function trigger picks this up to learn the merchant rule and recompute the month's dashboard. */
 export async function updateTransactionCategory(uid: string, txId: string, category: string): Promise<void> {
   const batch = writeBatch(db);

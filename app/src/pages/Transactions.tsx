@@ -2,18 +2,21 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import {
   deleteTransaction,
+  subscribeAllTransactions,
   subscribeMonthTransactions,
   updateTransactionCategory,
   updateTransactionMonth,
 } from "../lib/transactions";
 import { subscribeAvailableMonths } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
-import { currentMonth } from "../lib/month";
+import { useSelectedMonth } from "../lib/selectedMonth";
+import { NO_FILTERS, amountShown, matches, sourceKey, type Filters } from "../lib/transactionFilters";
+import { subscribeBankAccounts } from "../lib/bank";
 import { MonthPicker } from "../components/MonthPicker";
 import { AddTransactionForm } from "../components/AddTransactionForm";
 import { formatCurrency } from "../lib/format";
 import { ENTRY_CURRENCY } from "../types";
-import type { CategoryDef, DisplayCurrency, Transaction } from "../types";
+import type { AccountLink, CategoryDef, DisplayCurrency, Transaction } from "../types";
 
 // Matches CONFIDENCE_THRESHOLD in functions/categorize.py: below it the
 // AI's category is still applied, but marked so you know to double-check.
@@ -176,18 +179,52 @@ function TransactionRow({
 export function Transactions() {
   const { user } = useAuth();
   const uid = user!.uid;
-  const [month, setMonth] = useState(currentMonth());
+  const { month, setMonth } = useSelectedMonth();
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
+  const [accounts, setAccounts] = useState<AccountLink[]>([]);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
 
   useEffect(() => subscribeAvailableMonths(uid, setAvailableMonths), [uid]);
-  useEffect(() => subscribeMonthTransactions(uid, month, setTransactions), [uid, month]);
+  useEffect(
+    () =>
+      filters.allMonths
+        ? subscribeAllTransactions(uid, setTransactions)
+        : subscribeMonthTransactions(uid, month, setTransactions),
+    [uid, month, filters.allMonths],
+  );
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
+  useEffect(() => subscribeBankAccounts(uid, setAccounts), [uid]);
   const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>(ENTRY_CURRENCY);
   useEffect(() => subscribeUserSettings(uid, (s) => setDisplayCurrency(s.displayCurrency ?? ENTRY_CURRENCY)), [uid]);
   const [adding, setAdding] = useState(false);
   const [addedNote, setAddedNote] = useState(false);
+
+  const visible = transactions.filter((tx) => matches(tx, filters, categories, displayCurrency));
+  const filtering =
+    filters.search.trim() !== "" || filters.category !== "all" || filters.direction !== "all" || filters.source !== "all";
+  // Totals of what's shown, in the app currency; moves between your own accounts aren't counted.
+  let spent = 0;
+  let received = 0;
+  for (const tx of visible) {
+    const v = amountShown(tx, displayCurrency);
+    if (v === undefined || tx.internalTransfer) continue;
+    if (v < 0) spent -= v;
+    else received += v;
+  }
+
+  // Sources that actually appear, for the "From" filter.
+  const sourceOptions = Array.from(new Set(transactions.map(sourceKey))).map((key) => ({
+    key,
+    label:
+      key === "manual"
+        ? "Added by you"
+        : key === "csv"
+          ? "CSV import"
+          : (accounts.find((a) => a.id === key)?.displayName ?? "Bank account"),
+  }));
+  const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
   return (
     <div className="screen">
@@ -216,27 +253,95 @@ export function Transactions() {
       )}
       {addedNote && <p style={{ color: "var(--status-good)", fontSize: 13 }}>Transaction added.</p>}
 
-      <div className="field">
-        <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
+      <div className="field" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {filters.allMonths ? (
+            <select disabled aria-label="Month">
+              <option>All months</option>
+            </select>
+          ) : (
+            <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
+          )}
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, whiteSpace: "nowrap" }}>
+          <input type="checkbox" checked={filters.allMonths} onChange={(e) => set({ allMonths: e.target.checked })} />
+          All months
+        </label>
       </div>
 
-      <WaitingNote transactions={transactions} />
-
-      {transactions.length === 0 && <p className="empty-state">No transactions for {month}.</p>}
-
-      <div className="card">
-        {transactions.map((tx) => (
-          <TransactionRow
-            key={tx.id}
-            tx={tx}
-            categories={categories}
-            displayCurrency={displayCurrency}
-            onSaveCategory={(category) => updateTransactionCategory(uid, tx.id, category)}
-            onMove={(newMonth) => updateTransactionMonth(uid, tx.id, newMonth)}
-            onDelete={() => deleteTransaction(uid, tx.id)}
-          />
-        ))}
+      <div className="card" style={{ padding: 12 }}>
+        <input
+          type="search"
+          value={filters.search}
+          placeholder="Search name, category or amount"
+          onChange={(e) => set({ search: e.target.value })}
+          aria-label="Search transactions"
+        />
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <select value={filters.category} onChange={(e) => set({ category: e.target.value })} aria-label="Category" style={{ flex: "1 1 140px" }}>
+            <option value="all">All categories</option>
+            <option value="none">Not categorized</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filters.direction}
+            onChange={(e) => set({ direction: e.target.value as Filters["direction"] })}
+            aria-label="Spent or received"
+            style={{ flex: "1 1 110px" }}
+          >
+            <option value="all">Spent &amp; received</option>
+            <option value="out">Spent</option>
+            <option value="in">Received</option>
+          </select>
+          <select value={filters.source} onChange={(e) => set({ source: e.target.value })} aria-label="From" style={{ flex: "1 1 140px" }}>
+            <option value="all">All accounts</option>
+            {sourceOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: "var(--text-muted)" }}>
+          <span style={{ flex: 1 }}>
+            {visible.length} transaction{visible.length === 1 ? "" : "s"} · spent {formatCurrency(spent, displayCurrency)} · received{" "}
+            {formatCurrency(received, displayCurrency)}
+          </span>
+          {(filtering || filters.allMonths) && (
+            <button type="button" className="button secondary" style={{ padding: "4px 10px", fontSize: 12 }} onClick={() => setFilters(NO_FILTERS)}>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
+
+      {!filters.allMonths && <WaitingNote transactions={transactions} />}
+
+      {visible.length === 0 && (
+        <p className="empty-state">
+          {transactions.length === 0 ? `No transactions for ${month}.` : "No transactions match these filters."}
+        </p>
+      )}
+
+      {visible.length > 0 && (
+        <div className="card">
+          {visible.map((tx) => (
+            <TransactionRow
+              key={tx.id}
+              tx={tx}
+              categories={categories}
+              displayCurrency={displayCurrency}
+              onSaveCategory={(category) => updateTransactionCategory(uid, tx.id, category)}
+              onMove={(newMonth) => updateTransactionMonth(uid, tx.id, newMonth)}
+              onDelete={() => deleteTransaction(uid, tx.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
