@@ -542,6 +542,15 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       (in particular how EUR -> GBP moves show up), and whether a pending
       transaction keeps its `entry_reference` once booked
       (`scripts/test_enable_banking.py summary` covers the first three).
+
+      **Sync decisions (made by the user):**
+      - Moves between the two joint accounts (e.g. EUR exchanged into the
+        GBP account) are detected and left out of spending and income
+        totals automatically, still visible in the Transactions list.
+      - Only settled (`BOOK`) transactions are imported; pending (`PDNG`)
+        ones are skipped until they settle, so amounts never change after
+        they appear.
+      - The first sync imports as much history as Revolut allows.
    3. **Connect flow + daily sync** — a "Connect Revolut" button
       (Settings), the consent redirect, and a scheduled Cloud Function
       (`@scheduler_fn.on_schedule` — not the Cloud Scheduler → Cloud Run
