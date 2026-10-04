@@ -292,6 +292,32 @@ export function Dashboard() {
             <CategoryBarChart rows={categoryRows} currency={currency} />
           </div>
 
+          {(view.investments?.length ?? 0) > 0 && (
+            <div className="card">
+              <h2>Investments</h2>
+              <p style={{ marginTop: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                Money moved to investments this month. Kept apart: not spending, not in money left, not in the savings goal.
+              </p>
+              <div className="stat-value" style={{ fontSize: 28, marginBottom: 8 }}>
+                {formatCurrency(view.investmentsTotal ?? 0, currency)}
+              </div>
+              {view.investments!.map((item, i) => (
+                <div key={`${item.date}-${i}`} className="tx-row">
+                  <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
+                    <div className="tx-merchant">{item.merchant}</div>
+                    <div className="tx-date">
+                      {item.date} · {categoryLabel(item.category)}
+                    </div>
+                  </div>
+                  <div className={`tx-amount ${item.amount >= 0 ? "positive" : "negative"}`}>
+                    {item.amount >= 0 ? "" : "taken out "}
+                    {formatCurrency(Math.abs(item.amount), currency)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {fixedExpenseItems.length > 0 && (
             <div className="card">
               <h2>Fixed monthly expenses</h2>

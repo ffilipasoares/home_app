@@ -11,8 +11,9 @@ class CategoryDef(TypedDict):
     id: str
     label: str
     # "income" categories are excluded from spending and make up the
-    # detected salary. "savings" is only a hint for the categorization
-    # agent: the dashboard counts it as normal spending.
+    # detected salary. "savings" categories are investments: shown in their
+    # own Dashboard block, never spending, never in money left or the
+    # savings meter.
     special: NotRequired[Literal["income", "savings"]]
 
 
@@ -131,7 +132,9 @@ class DashboardView(TypedDict):
     totalExpenses: float
     fixedExpensesTotal: float
     savingsGoalTarget: float
-    moneyLeft: float  # income - expenses - fixed expenses
+    moneyLeft: float  # income - expenses - fixed expenses (investments excluded); what's saved this month
+    investmentsTotal: float  # net amount moved into "savings"-special categories this month
+    investments: list[dict]  # each: {date, merchant, amount (positive = invested), category}, newest first
     unconvertedCount: int  # categorized transactions not converted into this currency yet
     # Rate from each currency into this view's currency, used for the
     # hand-entered values (salaries, fixed expenses, savings goal), and the

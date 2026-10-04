@@ -184,7 +184,7 @@ export function Settings() {
 
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
           How much you want left at the end of each month. The Dashboard compares it with money left (income − spending
-          − fixed expenses). A savings or investment category is spending like any other.
+          − fixed expenses). Investments are shown separately and don't count here.
         </p>
         {saveButton("savings")}
       </div>

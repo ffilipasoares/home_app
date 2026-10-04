@@ -45,8 +45,7 @@ _SPECIAL_HINTS = {
     # accounts, card top-ups, refunds or cashback is not salary, and filing
     # it here inflates the salary the Dashboard detects.
     "income": "salary or wages paid by an employer only; NOT transfers from people or your own accounts, top-ups, refunds or cashback",
-    # Only a hint for the agent now: the dashboard treats this category like
-    # any other spending.
+    # Investments: the dashboard shows these in their own block, not as spending.
     "savings": "money moved to savings or investments (e.g. a broker such as Trading 212)",
 }
 

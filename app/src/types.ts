@@ -62,7 +62,7 @@ export type CategoryDef = {
   label: string;
   /**
    * "income": excluded from spending; makes up the detected salary.
-   * "savings": only a hint for the categorization agent; counted as normal spending.
+   * "savings": investments — shown in their own Dashboard block, never spending, never in money left or the savings meter.
    */
   special?: "income" | "savings";
 };
@@ -153,8 +153,12 @@ export type DashboardView = {
   totalExpenses: number;
   fixedExpensesTotal: number;
   savingsGoalTarget: number;
-  /** Income − expenses − fixed expenses. */
+  /** Income − expenses − fixed expenses (investments left out). What's saved this month. */
   moneyLeft: number;
+  /** Net amount moved into investment ("savings"-special) categories this month. Absent on older dashboards. */
+  investmentsTotal?: number;
+  /** Each investment transaction, newest first; amount positive = invested, negative = taken back out. */
+  investments?: { date: string; merchant: string; amount: number; category: string }[];
   /** Categorized transactions not converted into this currency yet, so not in its totals. */
   unconvertedCount: number;
   /** Rate from each currency into this one, used for hand-entered values (salaries, fixed expenses, savings goal); null where it couldn't be looked up. */

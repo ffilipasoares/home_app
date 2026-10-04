@@ -430,10 +430,11 @@ after Phase 0 testing:
 - Savings goal progress: **savings = money left at the end of the month**
   (decided by the user), compared with the savings goal, which is how
   much you want left. During the month the meter shows money left so far.
-  A savings/investment category (e.g. a Trading 212 transfer) is spending
-  like any other: it appears in the categories chart and comes off money
-  left. Its `special: "savings"` flag is only a hint for the
-  categorization agent.
+  Investments are an exception (decided by the user): transactions in a
+  `special: "savings"` category (e.g. a Trading 212 transfer) appear only
+  in their own **Investments** block (net amount invested that month and
+  each transfer), never in Expenses by category, never subtracted from
+  money left, never part of the savings meter.
 - Income editor, right on the Dashboard, for the month being viewed:
   **Filipa's Salary** and **João's Salary**, side by side, both editable
   — not a single salary field plus a generic "other income" list. Only
