@@ -28,6 +28,9 @@ export default defineConfig({
         // the service worker, so the dashboard always reflects live data
         // when online and simply fails gracefully (see AuthGate) offline.
         globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
+        // Firebase's reserved paths (the /__/auth sign-in handler) must
+        // reach the network, never the cached app shell.
+        navigateFallbackDenylist: [/^\/__\//],
       },
     }),
   ],

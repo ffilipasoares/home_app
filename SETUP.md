@@ -70,6 +70,17 @@ it **and** update the matching email literal in `firestore.rules` at the
 repo root (both must match — the rules file is the one that actually
 enforces it).
 
+**Allow sign-in on the app's own domain.** The deployed app sends Google
+sign-in through `https://<project-id>.web.app/__/auth/handler` (browsers
+now block the older cross-domain route, which shows up as clicking your
+account and landing back on the sign-in screen). Google has to know that
+address:
+[Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials)
+→ under *OAuth 2.0 Client IDs*, open **Web client (auto created by Google
+Service)** → *Authorized redirect URIs* → **Add URI**
+`https://<project-id>.web.app/__/auth/handler` → **Save**. It can take a
+few minutes to apply.
+
 ## 5. Point the Firebase CLI at your project
 
 From the repository root (if you're still inside `app/` from step 4, that's

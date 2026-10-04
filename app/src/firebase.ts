@@ -10,7 +10,15 @@ import { getFunctions } from "firebase/functions";
 // these values.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  // In the deployed app, sign-in goes through Firebase's /__/auth handler on
+  // the app's own domain rather than <project>.firebaseapp.com. Browsers now
+  // block the cross-site storage the redirect sign-in relies on, which
+  // silently drops you back on the sign-in screen when the two differ.
+  // Firebase Hosting serves /__/auth on every domain it hosts, so this works
+  // for web.app and any custom domain; local dev keeps the configured value.
+  // Needs https://<this domain>/__/auth/handler listed as an authorized
+  // redirect URI on the project's OAuth client (SETUP.md §4).
+  authDomain: import.meta.env.PROD ? window.location.host : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
