@@ -381,7 +381,7 @@ side by side on the Dashboard (not "salary" plus a generic list) matches
 that reality directly instead of modeling it as a list with one item.
 
 **`amountIn`** lets the Dashboard show everything in **EUR or GBP**
-(a € / £ switch, remembered as `displayCurrency` in the user's settings).
+(the **app currency**, `displayCurrency`, chosen in Settings; the Dashboard and Transactions show every amount in it).
 Every transaction stores its amount in each display currency
 (`fx.DISPLAY_CURRENCIES`), converted at the ECB rate for its own date via
 `functions/fx.py` (the free, keyless [Frankfurter API](https://frankfurter.dev/)),

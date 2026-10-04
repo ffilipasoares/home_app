@@ -2,14 +2,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
-import { saveDisplayCurrency, subscribeCategories, subscribeUserSettings } from "../lib/settings";
+import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { saveMonthlyIncome, subscribeMonthlyIncome } from "../lib/monthlyIncome";
 import { currentMonth } from "../lib/month";
 import { MonthPicker } from "../components/MonthPicker";
 import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
-import { CurrencySwitch } from "../components/CurrencySwitch";
 import { formatCurrency } from "../lib/format";
 import { DISPLAY_CURRENCIES, ENTRY_CURRENCY } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, MonthlyIncome, UserSettings } from "../types";
@@ -171,6 +170,7 @@ export function Dashboard() {
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
   useEffect(() => subscribeUserSettings(uid, setSettings), [uid]);
 
+  // The app currency, chosen in Settings: every figure here is shown in it.
   const currency: DisplayCurrency = settings?.displayCurrency ?? ENTRY_CURRENCY;
   const view = viewFor(dashboard, currency);
   const salaryCurrency: DisplayCurrency = settings?.salaryCurrency ?? ENTRY_CURRENCY;
@@ -194,11 +194,8 @@ export function Dashboard() {
   return (
     <div className="screen">
       <h1>Dashboard</h1>
-      <div className="field" style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
-        </div>
-        <CurrencySwitch value={currency} onChange={(c) => saveDisplayCurrency(uid, c)} />
+      <div className="field">
+        <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
       </div>
 
       {view && view.unconvertedCount > 0 && (

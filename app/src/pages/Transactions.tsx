@@ -56,7 +56,7 @@ function TransactionRow({
   onDelete: () => void;
   displayCurrency: DisplayCurrency;
 }) {
-  // The amount in the currency chosen on the Dashboard, at this transaction's own date's rate.
+  // The amount in the app currency (Settings), at this transaction's own date's rate.
   const shownAmount = tx.amountIn?.[displayCurrency] ?? (displayCurrency === "EUR" ? tx.amountHome : undefined);
   // Needs-review rows open ready to act on; an already-confirmed
   // transaction stays a quiet, compact summary line until you ask to
@@ -98,10 +98,16 @@ function TransactionRow({
         </div>
       </div>
       <div className={`tx-amount ${tx.amount >= 0 ? "positive" : "negative"}`}>
-        {formatCurrency(tx.amount, tx.currency)}
+        {tx.currency === displayCurrency || shownAmount === undefined
+          ? formatCurrency(tx.amount, tx.currency)
+          : formatCurrency(shownAmount, displayCurrency)}
         {tx.currency !== displayCurrency && (
           <div style={{ fontSize: 11, fontWeight: 400, color: "var(--text-muted)" }}>
-            {shownAmount !== undefined ? <>→ {formatCurrency(shownAmount, displayCurrency)}</> : <>{displayCurrency} pending</>}
+            {shownAmount !== undefined ? (
+              <>original {formatCurrency(tx.amount, tx.currency)}</>
+            ) : (
+              <>{displayCurrency} amount pending</>
+            )}
           </div>
         )}
       </div>

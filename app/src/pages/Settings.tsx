@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import {
   resetCategoriesToDefaults,
+  saveDisplayCurrency,
   saveCategories,
   saveUserSettings,
   subscribeCategories,
@@ -76,6 +77,26 @@ export function Settings() {
       </p>
 
       <BankConnectionCard uid={uid} />
+
+      <div className="card">
+        <h2>App currency</h2>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label>Show everything in</label>
+          <CurrencySelect
+            label="App currency"
+            value={settings.displayCurrency ?? ENTRY_CURRENCY}
+            onChange={(displayCurrency) => {
+              setSettings({ ...settings, displayCurrency });
+              saveDisplayCurrency(uid, displayCurrency);
+            }}
+          />
+          <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
+            The Dashboard and Transactions show every amount in this currency. Transactions in the other currency are
+            converted at the rate for their own date; amounts you enter (salaries, savings goal, fixed expenses) at the
+            month's rate. Saved straight away.
+          </p>
+        </div>
+      </div>
 
       <div className="card">
         <h2>Salaries</h2>
