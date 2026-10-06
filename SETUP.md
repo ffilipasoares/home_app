@@ -64,7 +64,7 @@ cp .env.example .env.local
 ```
 
 Fill in `.env.local` with the `firebaseConfig` values from step 2.4.
-`VITE_ALLOWED_EMAIL` is already set to `filipaferreirasoares12@gmail.com` —
+`VITE_ALLOWED_EMAIL` is already set to `joaofilipa310@gmail.com` —
 leave it if that's the Google account you'll sign in with, otherwise change
 it **and** update the matching email literal in `firestore.rules` at the
 repo root (both must match — the rules file is the one that actually

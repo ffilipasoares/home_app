@@ -9,7 +9,7 @@ rules_version = '2';
 function isOwner(uid) {
   return request.auth != null
     && request.auth.uid == uid
-    && request.auth.token.email == "filipaferreirasoares12@gmail.com"; // <- change if you use a different Google account
+    && request.auth.token.email == "joaofilipa310@gmail.com"; // <- change if you use a different Google account
 }
 
 service cloud.firestore {
