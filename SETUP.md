@@ -286,6 +286,7 @@ duplicates on re-sync, expired-access handling and reconnecting.
 ```bash
 cd functions && source venv/bin/activate && cd ..
 python3 scripts/test_bank_sync.py
+python3 scripts/test_fixed_expenses.py   # fixed expenses' categories on the Dashboard
 ```
 
 `scripts/test_enable_banking.py` talks to the real Enable Banking API

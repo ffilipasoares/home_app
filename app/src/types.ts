@@ -25,7 +25,16 @@ export type FixedLineItem = {
   amount: number;
   /** EUR if not set. */
   currency?: DisplayCurrency;
+  /**
+   * Picked by the AI when left empty, or chosen in Settings. Counts in that category on the Dashboard; an
+   * investments category moves it to the Investments block instead.
+   */
+  category?: string;
+  categorySource?: "auto" | "user";
 };
+
+/** totalsByCategory key for fixed expenses without a category yet (functions/dashboard.py). */
+export const UNCATEGORIZED_FIXED = "uncategorized_fixed";
 
 /** The currencies the dashboard can be shown in (functions/fx.py, DISPLAY_CURRENCIES). */
 export const DISPLAY_CURRENCIES = ["EUR", "GBP"] as const;
@@ -151,6 +160,7 @@ export type DashboardView = {
   filipaSalarySource: "manual" | "auto" | "none";
   /** Always manual — see MonthlyIncome.joaoSalary. */
   joaoSalary: number;
+  /** Spending per category, fixed expenses included (UNCATEGORIZED_FIXED: a fixed expense with no category yet). */
   totalsByCategory: Record<string, number>;
   totalExpenses: number;
   fixedExpensesTotal: number;
@@ -159,8 +169,11 @@ export type DashboardView = {
   moneyLeft: number;
   /** Net amount moved into investment ("savings"-special) categories this month. Absent on older dashboards. */
   investmentsTotal?: number;
-  /** Each investment transaction, newest first; amount positive = invested, negative = taken back out. */
-  investments?: { date: string; merchant: string; amount: number; category: string }[];
+  /**
+   * Each investment, newest first, fixed monthly investments (date null) at the top; amount positive = invested,
+   * negative = taken back out.
+   */
+  investments?: { date: string | null; merchant: string; amount: number; category: string; fixed?: boolean }[];
   /** Categorized transactions not converted into this currency yet, so not in its totals. */
   unconvertedCount: number;
   /** Rate from each currency into this one, used for hand-entered values (salaries, fixed expenses, savings goal); null where it couldn't be looked up. */

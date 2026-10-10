@@ -49,7 +49,8 @@ from category_rules import find_exact_category_rule, list_recent_category_rules
 from dashboard import recompute_month
 from enable_banking import Client, EnableBankingError
 from fx import amounts_in, missing_display_currencies
-from schema import CategoryDef, Transaction
+from merchant import normalize_merchant
+from schema import CategoryDef, FixedLineItem, Transaction
 
 firebase_admin.initialize_app()
 
@@ -261,6 +262,67 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
         recompute_month(uid, before_month)
 
 
+# --- Fixed monthly expenses ---------------------------------------------------
+
+
+def _needs_fixed_category(item: FixedLineItem) -> bool:
+    return not item.get("category") and bool((item.get("label") or "").strip())
+
+
+async def _pick_fixed_categories(uid: str, items: list[FixedLineItem]) -> dict[str, str]:
+    """Categorizes fixed expenses the same way as transactions (exact
+    learned rule first, then the agent), by their label. Returns
+    {item id: category}; an item the agent can't place is left out and tried
+    again on the next settings save or bank sync."""
+    # A fixed expense is money going out, never salary.
+    categories = [c for c in _load_categories(uid) if c.get("special") != "income"]
+    recent_rules = list_recent_category_rules(uid)
+    picked: dict[str, str] = {}
+    for item in items:
+        rule = find_exact_category_rule(uid, normalize_merchant(item["label"]))
+        if rule and any(c["id"] == rule["category"] for c in categories):
+            picked[item["id"]] = rule["category"]
+            continue
+        try:
+            result = await categorize_transaction(item["label"], -abs(item.get("amount") or 0), categories, recent_rules)
+        except CategorizationError as err:
+            print(f"fixed expense {item['id']} not categorized: {err}")
+            continue
+        picked[item["id"]] = result["category"]
+    return picked
+
+
+def _categorize_fixed_expenses(uid: str) -> bool:
+    """Gives every uncategorized fixed expense a category. Returns True if
+    it saved any (that write fires on_user_settings_write again, which
+    recalculates the dashboards)."""
+    user_ref = firestore.client().collection("users").document(uid)
+    items: list[FixedLineItem] = (user_ref.get().to_dict() or {}).get("fixedExpenses", [])
+    todo = [i for i in items if _needs_fixed_category(i)]
+    if not todo:
+        return False
+    try:
+        picked = asyncio.run(_pick_fixed_categories(uid, todo))
+    except Exception:  # noqa: BLE001 - left uncategorized, retried later
+        traceback.print_exc()
+        return False
+    if not picked:
+        return False
+    # Re-read so an edit saved while the agent was thinking isn't lost, and
+    # only fill items that are still uncategorized with the same label.
+    labels = {i["id"]: i["label"] for i in todo}
+    current: list[FixedLineItem] = (user_ref.get().to_dict() or {}).get("fixedExpenses", [])
+    changed = False
+    for item in current:
+        if item.get("id") in picked and _needs_fixed_category(item) and item.get("label") == labels.get(item["id"]):
+            item["category"] = picked[item["id"]]
+            item["categorySource"] = "auto"
+            changed = True
+    if changed:
+        user_ref.update({"fixedExpenses": current})
+    return changed
+
+
 # Settings that feed every month's totals. displayCurrency isn't here: both
 # currencies are already computed, so switching it needs no recalculation.
 _TOTALS_SETTINGS = ("fixedExpenses", "savingsGoal", "salaryCurrency", "joaoSalary")
@@ -270,11 +332,16 @@ _TOTALS_SETTINGS = ("fixedExpenses", "savingsGoal", "salaryCurrency", "joaoSalar
 def on_user_settings_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     """Saving fixed expenses, the savings goal or a salary setting in
     Settings recalculates every month's dashboard; they apply to all months
-    and otherwise wouldn't show until each month's next transaction."""
+    and otherwise wouldn't show until each month's next transaction. A
+    fixed expense saved without a category gets one from the agent first."""
     uid = event.params["uid"]
     before = (event.data.before.to_dict() if event.data.before else None) or {}
     after = (event.data.after.to_dict() if event.data.after else None) or {}
-    if not after or all(before.get(f) == after.get(f) for f in _TOTALS_SETTINGS):
+    if not after:
+        return
+    if _categorize_fixed_expenses(uid):
+        return  # that write fires this trigger again, which recalculates
+    if all(before.get(f) == after.get(f) for f in _TOTALS_SETTINGS):
         return
     months = _months_with_dashboards(uid)
     for month in months:
@@ -428,4 +495,5 @@ def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
     # is handling right now) gets another go, one at a time.
     for uid in _user_ids():
         print(f"daily_bank_sync EUR/GBP amounts uid={uid}: {_fill_missing_display_amounts(uid)}")
+        print(f"daily_bank_sync fixed expenses categorized uid={uid}: {_categorize_fixed_expenses(uid)}")
         print(f"daily_bank_sync catch-up uid={uid}: {_categorize_pending(uid, deadline)}")

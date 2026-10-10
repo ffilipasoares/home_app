@@ -322,8 +322,12 @@ transaction for manual review," never a silent bad write.
 ```
 users/{uid}
   savingsGoal: { type: "fixed"|"percent", value },
-  fixedExpenses: [ { id, label, amount }, ... ]   -- e.g. rent, paid from another account;
-                                                     assumed stable month to month (global, not per-month)
+  fixedExpenses: [ { id, label, amount, currency?, category?, categorySource?: "auto"|"user" }, ... ]
+                                                  -- e.g. rent, paid from another account;
+                                                     assumed stable month to month (global, not per-month).
+                                                     A category left empty is picked by the agent
+                                                     (main.py, _categorize_fixed_expenses) when Settings
+                                                     are saved, retried by the twice-daily sync
 
 users/{uid}/settings/categories        (single doc)
   categories: [ { id, label, special?: "income"|"savings" }, ... ]   -- editable, seeded from §7
@@ -455,6 +459,10 @@ after Phase 0 testing:
 - Fixed monthly expenses (rent etc. — configured in Settings, global,
   never detected from a transaction) shown as their own list so the
   money-left number is traceable to something other than "trust me".
+  Each also counts in its category in "Expenses by category" (one with
+  no category yet under `uncategorized_fixed`); one in an investments
+  category goes to the Investments block instead, like an investment
+  transaction, and isn't subtracted from money left.
 - **Money left** = `(filipaSalary + joaoSalary) − Σ(expenses) − Σfixed
   expenses` — income minus real spend, where fixed expenses are costs paid
   from another account (e.g. rent) that leave the household's money just

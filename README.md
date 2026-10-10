@@ -45,8 +45,9 @@ functions/   Cloud Functions (Python): an ADK categorization agent
              write; the Revolut connection and twice-daily bank sync
              (enable_banking.py, bank_sync.py)
 scripts/     local test tools: the categorization agent, the Enable
-             Banking API (test_enable_banking.py), the bank sync offline
-             (test_bank_sync.py)
+             Banking API (test_enable_banking.py), the bank sync and fixed
+             expense categories offline (test_bank_sync.py,
+             test_fixed_expenses.py)
 firestore.rules, firestore.indexes.json, firebase.json — Firebase config
 docs/ARCHITECTURE.md — full architecture design + roadmap
 SETUP.md     — how to deploy this to your own Firebase project

@@ -10,7 +10,7 @@ import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
 import { formatCurrency } from "../lib/format";
-import { DISPLAY_CURRENCIES, ENTRY_CURRENCY } from "../types";
+import { DISPLAY_CURRENCIES, ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, MonthlyIncome, UserSettings } from "../types";
 
 /**
@@ -196,14 +196,18 @@ export function Dashboard() {
   const otherCurrency = DISPLAY_CURRENCIES.find((c) => c !== currency);
   const otherRate = otherCurrency ? view?.rates[otherCurrency] : null;
 
-  const categoryLabel = (id: string) => categories.find((c) => c.id === id)?.label ?? id;
+  const categoryLabel = (id: string) =>
+    id === UNCATEGORIZED_FIXED ? "Fixed expenses, no category yet" : (categories.find((c) => c.id === id)?.label ?? id);
 
   const categoryRows = Object.entries(view?.totalsByCategory ?? {}).map(([id, value]) => ({
     label: categoryLabel(id),
     value,
   }));
 
-  const fixedExpenseItems = settings?.fixedExpenses ?? [];
+  // One in an investments category is listed under Investments instead.
+  const fixedExpenseItems = (settings?.fixedExpenses ?? []).filter(
+    (item) => categories.find((c) => c.id === item.category)?.special !== "savings",
+  );
 
   return (
     <div className="screen">
@@ -293,7 +297,7 @@ export function Dashboard() {
           <div className="card">
             <h2>Expenses by category</h2>
             <p style={{ marginTop: 0, fontSize: 12, color: "var(--text-muted)" }}>
-              From imported &amp; categorized transactions only — fixed expenses below are added separately.
+              Categorized transactions plus your fixed monthly expenses.
             </p>
             <CategoryBarChart rows={categoryRows} currency={currency} />
           </div>
@@ -312,7 +316,7 @@ export function Dashboard() {
                   <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
                     <div className="tx-merchant">{item.merchant}</div>
                     <div className="tx-date">
-                      {item.date} · {categoryLabel(item.category)}
+                      {item.fixed ? "Every month" : item.date} · {categoryLabel(item.category)}
                     </div>
                   </div>
                   <div className={`tx-amount ${item.amount >= 0 ? "positive" : "negative"}`}>
@@ -332,7 +336,12 @@ export function Dashboard() {
                 const shown = convert(item.amount, from);
                 return (
                   <div key={item.id} className="tx-row">
-                    <span>{item.label}</span>
+                    <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
+                      <div className="tx-merchant">{item.label}</div>
+                      <div className="tx-date">
+                        {item.category ? categoryLabel(item.category) : "Category: AI is picking one…"}
+                      </div>
+                    </div>
                     <span className="tx-amount negative">
                       {shown != null ? formatCurrency(-shown, currency) : formatCurrency(-item.amount, from)}
                     </span>

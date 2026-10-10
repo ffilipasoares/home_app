@@ -22,6 +22,12 @@ class FixedLineItem(TypedDict, total=False):
     label: str
     amount: float
     currency: str  # EUR if not set
+    # Picked by the categorization agent when left empty (main.py,
+    # _categorize_fixed_expenses), or chosen in Settings. Counts in that
+    # category on the Dashboard; a "savings" (investments) category moves it
+    # to the Investments block instead of fixed expenses.
+    category: str
+    categorySource: Literal["auto", "user"]
 
 
 class SavingsGoal(TypedDict, total=False):
@@ -129,13 +135,13 @@ class DashboardView(TypedDict):
     autoDetectedFilipaSalary: float
     filipaSalarySource: Literal["manual", "auto", "none"]
     joaoSalary: float
-    totalsByCategory: dict[str, float]
-    totalExpenses: float
+    totalsByCategory: dict[str, float]  # spending per category, fixed expenses included (dashboard.UNCATEGORIZED_FIXED: no category yet)
+    totalExpenses: float  # spending from transactions only; fixed expenses are fixedExpensesTotal
     fixedExpensesTotal: float
     savingsGoalTarget: float
     moneyLeft: float  # income - expenses - fixed expenses (investments excluded); what's saved this month
     investmentsTotal: float  # net amount moved into "savings"-special categories this month
-    investments: list[dict]  # each: {date, merchant, amount (positive = invested), category}, newest first
+    investments: list[dict]  # each: {date (None for a fixed expense), merchant, amount (positive = invested), category, fixed?}
     unconvertedCount: int  # categorized transactions not converted into this currency yet
     # Rate from each currency into this view's currency, used for the
     # hand-entered values (salaries, fixed expenses, savings goal), and the

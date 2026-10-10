@@ -29,6 +29,10 @@ from fx import DISPLAY_CURRENCIES, HOME_CURRENCY, amount_in, get_rate
 from schema import CategoryDef, DashboardDoc, DashboardView, MonthlyIncome, UserSettings
 
 
+# totalsByCategory key for fixed expenses that don't have a category yet.
+UNCATEGORIZED_FIXED = "uncategorized_fixed"
+
+
 def _month_rate_date(month: str) -> str:
     """The date whose rate converts a month's hand-entered values: the
     month's last day, or today if that hasn't happened yet."""
@@ -87,7 +91,10 @@ def recompute_month(uid: str, month: str) -> None:
         joao = (float(joao_setting["amount"]), joao_setting.get("currency") or HOME_CURRENCY)
     else:
         joao = (joao_salary, salary_currency)
-    fixed = [(item["amount"], item.get("currency") or HOME_CURRENCY) for item in fixed_expenses]
+    fixed = [
+        (item["amount"], item.get("currency") or HOME_CURRENCY, item.get("category"), item.get("label", ""))
+        for item in fixed_expenses
+    ]
 
     views: dict[str, DashboardView] = {}
     for currency in DISPLAY_CURRENCIES:
@@ -119,7 +126,7 @@ def _view(
     rate_date: str,
     filipa_manual: tuple[float, str] | None,
     joao: tuple[float, str],
-    fixed: list[tuple[float, str]],
+    fixed: list[tuple[float, str, str | None, str]],
     savings_goal: dict,
 ) -> DashboardView:
     auto_detected_salary = 0.0
@@ -176,7 +183,21 @@ def _view(
     filipa_salary = convert(*filipa_manual) if filipa_manual is not None else auto_detected_salary
     filipa_salary_source = "manual" if filipa_manual is not None else ("auto" if auto_detected_salary > 0 else "none")
 
-    fixed_expenses_total = sum(convert(amount, source) for amount, source in fixed)
+    # Fixed expenses count in their category like any spending (a fixed
+    # expense still waiting for one under UNCATEGORIZED_FIXED); one in an
+    # investments category goes to the Investments block instead.
+    fixed_expenses_total = 0.0
+    for amount, source, category, label in fixed:
+        value = convert(amount, source)
+        definition = category_by_id.get(category) if category else None
+        if definition and definition.get("special") == "savings":
+            investments_total += value
+            investments.append({"date": None, "merchant": label, "amount": value, "category": category, "fixed": True})
+            continue
+        fixed_expenses_total += value
+        if value:
+            key = category if definition else UNCATEGORIZED_FIXED
+            totals_by_category[key] = totals_by_category.get(key, 0.0) + value
     joao_salary = convert(*joao)
     total_income = filipa_salary + joao_salary
 
@@ -204,7 +225,8 @@ def _view(
         "savingsGoalTarget": savings_goal_target,
         "moneyLeft": money_left,
         "investmentsTotal": investments_total,
-        "investments": sorted(investments, key=lambda i: i["date"] or "", reverse=True),
+        # Monthly fixed investments first, then transactions newest first.
+        "investments": sorted(investments, key=lambda i: i["date"] or "9999", reverse=True),
         "unconvertedCount": unconverted_count,
         "rates": rates,
         "rateDate": rate_date,

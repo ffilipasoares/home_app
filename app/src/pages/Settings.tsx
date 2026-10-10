@@ -192,8 +192,9 @@ export function Settings() {
       <div className="card">
         <FixedItemsEditor
           title="Fixed monthly expenses"
-          hint="Costs paid every month from another account, e.g. rent. They leave your money just the same, so they're subtracted from money left on the Dashboard, every month. If one changes, edit it here."
+          hint="Costs paid every month from another account, e.g. rent. They leave your money just the same, so they're subtracted from money left on the Dashboard, every month, and count in their category. Leave the category to the AI or pick one; an investments category puts it in Investments instead. If one changes, edit it here."
           items={settings.fixedExpenses}
+          categories={categories}
           onChange={(fixedExpenses) => setSettings({ ...settings, fixedExpenses })}
         />
         {saveButton("fixed")}
