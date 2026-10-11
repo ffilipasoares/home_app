@@ -126,6 +126,14 @@ export function Dashboard() {
     const rate = view?.rates[from];
     return rate != null ? value * rate : null;
   };
+  // Worked out here from the parts shown on this page, so the totals always
+  // match them, even for a month the server last calculated with an older
+  // formula (its moneyLeft is the same sum: functions/dashboard.py).
+  const totals = view && {
+    income: view.filipaSalary + view.joaoSalary,
+    savedSoFar: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal,
+    moneyLeft: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal - view.savingsGoalTarget,
+  };
   const otherCurrency = DISPLAY_CURRENCIES.find((c) => c !== currency);
 
   const categoryLabel = (id: string) =>
@@ -181,11 +189,11 @@ export function Dashboard() {
         </p>
       )}
 
-      {view && (
+      {view && totals && (
         <>
           <div className="stat-row">
-            <StatTile label="Income this month" value={view.filipaSalary + view.joaoSalary} currency={currency} />
-            <StatTile label="Money left" value={view.moneyLeft} hero currency={currency} />
+            <StatTile label="Income this month" value={totals.income} currency={currency} />
+            <StatTile label="Money left" value={totals.moneyLeft} hero currency={currency} />
           </div>
           {view.missingRate && otherCurrency && (
             <p style={{ fontSize: 12, color: "var(--status-warning)", marginTop: -4 }}>
@@ -197,7 +205,7 @@ export function Dashboard() {
           <div className="card">
             <h2>Savings goal</h2>
             <SavingsMeter
-              actual={view.moneyLeft + view.savingsGoalTarget}
+              actual={totals.savedSoFar}
               target={view.savingsGoalTarget}
               currency={currency}
             />
