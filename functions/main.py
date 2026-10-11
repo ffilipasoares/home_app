@@ -90,9 +90,12 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
     tx_ref = db.collection("users").document(uid).collection("transactions").document(tx_id)
     now_ms = int(time.time() * 1000)
     categories = _load_categories(uid)
+    current_ids = {c["id"] for c in categories}
 
+    # A learned rule only counts while its category still exists in
+    # Settings; one for a removed category goes to the agent instead.
     exact_rule = find_exact_category_rule(uid, tx["merchantNormalized"])
-    if exact_rule:
+    if exact_rule and exact_rule["category"] in current_ids:
         month = resolve_budget_month(tx["date"], tx["month"], _special_for(categories, exact_rule["category"]))
         tx_ref.update(
             {
@@ -107,7 +110,7 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
         )
         return True
 
-    recent_rules = list_recent_category_rules(uid)
+    recent_rules = [r for r in list_recent_category_rules(uid) if r["category"] in current_ids]
     try:
         result = await categorize_transaction(tx["merchantRaw"], tx["amount"], categories, recent_rules)
     except CategorizationError as err:
@@ -276,7 +279,7 @@ async def _pick_fixed_categories(uid: str, items: list[FixedLineItem]) -> dict[s
     again on the next settings save or bank sync."""
     # A fixed expense is money going out, never salary.
     categories = [c for c in _load_categories(uid) if c.get("special") != "income"]
-    recent_rules = list_recent_category_rules(uid)
+    recent_rules = [r for r in list_recent_category_rules(uid) if any(c["id"] == r["category"] for c in categories)]
     picked: dict[str, str] = {}
     for item in items:
         rule = find_exact_category_rule(uid, normalize_merchant(item["label"]))
