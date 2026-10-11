@@ -205,8 +205,8 @@ export function Settings() {
         </div>
 
         <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-          How much you want left at the end of each month. The Dashboard compares it with money left (income − spending
-          − fixed expenses). Investments are shown separately and don't count here.
+          How much you want to save each month. It's set aside first: money left on the Dashboard is income − spending −
+          fixed expenses − this goal. Investments are shown separately and don't count here.
         </p>
         {saveButton("savings")}
       </div>

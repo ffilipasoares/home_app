@@ -142,7 +142,7 @@ class DashboardView(TypedDict):
     totalExpenses: float  # spending from transactions only; fixed expenses are fixedExpensesTotal
     fixedExpensesTotal: float
     savingsGoalTarget: float
-    moneyLeft: float  # income - expenses - fixed expenses (investments excluded); what's saved this month
+    moneyLeft: float  # income - expenses - fixed expenses - savings goal (investments excluded); still free to spend
     investmentsTotal: float  # net amount moved into "savings"-special categories this month
     investments: list[dict]  # each: {date (None for a fixed expense), merchant, amount (positive = invested), category, fixed?}
     unconvertedCount: int  # categorized transactions not converted into this currency yet

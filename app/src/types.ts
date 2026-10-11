@@ -167,7 +167,7 @@ export type DashboardView = {
   totalExpenses: number;
   fixedExpensesTotal: number;
   savingsGoalTarget: number;
-  /** Income − expenses − fixed expenses (investments left out). What's saved this month. */
+  /** Income − expenses − fixed expenses − savings goal (investments left out). What's still free to spend. */
   moneyLeft: number;
   /** Net amount moved into investment ("savings"-special) categories this month. Absent on older dashboards. */
   investmentsTotal?: number;

@@ -497,3 +497,9 @@ def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
         print(f"daily_bank_sync EUR/GBP amounts uid={uid}: {_fill_missing_display_amounts(uid)}")
         print(f"daily_bank_sync fixed expenses categorized uid={uid}: {_categorize_fixed_expenses(uid)}")
         print(f"daily_bank_sync catch-up uid={uid}: {_categorize_pending(uid, deadline)}")
+        # Every month again, so a change to how totals are worked out reaches
+        # months nothing else has touched since (a handful of months: cheap).
+        months = _months_with_dashboards(uid)
+        for month in months:
+            recompute_month(uid, month)
+        print(f"daily_bank_sync recalculated uid={uid}: {len(months)} month(s)")

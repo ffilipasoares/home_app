@@ -3,7 +3,8 @@ import { formatCurrency } from "../lib/format";
 /** Single ratio against a limit -> meter. Fill color carries the state (on
  * track / behind), per the dataviz skill's status-palette rule — reserved
  * for genuine state, which "behind on your savings goal" is.
- * `actual` is money left this month: what's saved at the end of the month. */
+ * `actual` is what's saved so far this month: income − spending − fixed
+ * expenses, i.e. money left plus the goal it already sets aside. */
 export function SavingsMeter({ actual, target, currency = "EUR" }: { actual: number; target: number; currency?: string }) {
   if (target <= 0) {
     return <p className="empty-state">No savings goal set — add one in Settings.</p>;
@@ -18,7 +19,7 @@ export function SavingsMeter({ actual, target, currency = "EUR" }: { actual: num
         <div className="meter-fill" style={{ width: `${pct}%`, background: color }} />
       </div>
       <div className="meter-caption">
-        <span>{formatCurrency(actual, currency)} left this month</span>
+        <span>{formatCurrency(actual, currency)} saved so far</span>
         <span>Goal: {formatCurrency(target, currency)}</span>
       </div>
     </div>

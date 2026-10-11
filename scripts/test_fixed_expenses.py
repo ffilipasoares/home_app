@@ -67,6 +67,15 @@ check("money left subtracts fixed once", v["moneyLeft"] == -(50.0 + 1250.0))
 check("investment fixed expense in Investments", v["investmentsTotal"] == 200.0 and v["investments"][0]["merchant"] == "Trading 212")
 check("fixed investment marked and undated", v["investments"][0]["fixed"] is True and v["investments"][0]["date"] is None)
 
+v = dashboard._view(
+    "EUR", txs, BY_ID, RATES, "2026-10-31", (3000.0, "EUR"), (0.0, "EUR"), [(500.0, "EUR", "needs", "Rent")],
+    {"type": "fixed", "value": 1000, "currency": "GBP"},
+)
+check("savings goal converted", v["savingsGoalTarget"] == 1200.0)
+check("money left subtracts the savings goal too", v["moneyLeft"] == 3000.0 - 50.0 - 500.0 - 1200.0)
+v = dashboard._view("EUR", txs, BY_ID, RATES, "2026-10-31", (3000.0, "EUR"), (0.0, "EUR"), [], {"type": "percent", "value": 10})
+check("percent goal: share of income, subtracted", v["savingsGoalTarget"] == 300.0 and v["moneyLeft"] == 3000.0 - 50.0 - 300.0)
+
 inv_tx = [{"category": "invest", "amount": -30.0, "amountIn": {"EUR": -30.0}, "date": "2026-10-05", "merchantRaw": "T212"}]
 v = view([(200.0, "EUR", "invest", "Trading 212")], inv_tx)
 check("fixed investment listed before dated ones", [i["merchant"] for i in v["investments"]] == ["Trading 212", "T212"])

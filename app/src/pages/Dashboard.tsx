@@ -196,10 +196,13 @@ export function Dashboard() {
 
           <div className="card">
             <h2>Savings goal</h2>
-            <SavingsMeter actual={view.moneyLeft} target={view.savingsGoalTarget} currency={currency} />
+            <SavingsMeter
+              actual={view.moneyLeft + view.savingsGoalTarget}
+              target={view.savingsGoalTarget}
+              currency={currency}
+            />
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-              What you save is what's left at the end of the month (money left). During the month this shows how much is
-              left so far.
+              Money left already has the goal set aside. Saved so far = income − spending − fixed expenses.
             </p>
           </div>
 

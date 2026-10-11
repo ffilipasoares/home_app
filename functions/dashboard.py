@@ -208,10 +208,11 @@ def _view(
 
     # Money left = income minus spending minus fixed expenses (costs paid
     # from another account, e.g. rent, which leave the household's money
-    # just the same). Investments are left out entirely. Money left is what
-    # you save this month; the savings goal is how much you want it to be,
-    # and the Dashboard's savings meter compares the two.
-    money_left = total_income - total_expenses - fixed_expenses_total
+    # just the same) minus the savings goal, set aside first (decided by the
+    # user): what's still free to spend. Investments are left out entirely.
+    # The Dashboard's savings meter shows money left + the goal (what's
+    # saved so far) against the goal.
+    money_left = total_income - total_expenses - fixed_expenses_total - savings_goal_target
 
     return {
         "currency": currency,

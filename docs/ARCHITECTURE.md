@@ -431,9 +431,10 @@ after Phase 0 testing:
 
 - Expenses by category (this month, from categorized transactions only),
   as a bar chart.
-- Savings goal progress: **savings = money left at the end of the month**
-  (decided by the user), compared with the savings goal, which is how
-  much you want left. During the month the meter shows money left so far.
+- Savings goal progress: the goal is set aside first, so it's subtracted
+  from money left (decided by the user); the meter shows saved so far
+  (income − spending − fixed expenses, i.e. money left + the goal)
+  against the goal.
   Investments are an exception (decided by the user): transactions in a
   `special: "savings"` category (e.g. a Trading 212 transfer) appear only
   in their own **Investments** block (net amount invested that month and
@@ -464,16 +465,16 @@ after Phase 0 testing:
   category goes to the Investments block instead, like an investment
   transaction, and isn't subtracted from money left.
 - **Money left** = `(filipaSalary + joaoSalary) − Σ(expenses) − Σfixed
-  expenses` — income minus real spend, where fixed expenses are costs paid
+  expenses − savings goal` — income minus real spend, where fixed expenses are costs paid
   from another account (e.g. rent) that leave the household's money just
   the same, and `filipaSalary` is the amount typed in Settings if there
   is one, else the auto-detected "income"-category transaction total,
   else 0 (shown on the Dashboard as "Not detected yet" rather than
-  silently treated as zero). Money left is also what you save that month; the
-  savings goal is **not** subtracted, it's the target money left is
-  compared against. Changing fixed
+  silently treated as zero). The savings goal is set aside first, so money
+  left is what's still free to spend. Changing fixed
   expenses, the savings goal or a salary setting recalculates every month
-  (`on_user_settings_write`).
+  (`on_user_settings_write`), and the twice-daily sync recalculates every
+  month too, so a change to this formula reaches old months on its own.
 - A transaction can be **deleted** outright (Transactions screen) — the
   Cloud Function trigger fires on delete too and recomputes the month it
   was counted in, so it drops out of every total, not just the visible
