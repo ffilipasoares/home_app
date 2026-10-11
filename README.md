@@ -18,9 +18,9 @@ automatically on arrival by a real ADK agent (`google-adk`, Python — `function
 that can consult how similar merchants were categorized before rather than
 guessing blind (Gemini 3.5 Flash-Lite). Every answer is applied
 automatically, with unsure ones marked "AI not sure"; you can change any
-category afterwards. Salary/other income is entered per
-month directly on the Dashboard, so reviewing an old month always shows
-what actually applied then.
+category afterwards. Salaries are set in Settings (Filipa's is detected
+from her salary payments unless an amount is typed there); the Dashboard
+just shows them.
 
 Phase 2 connects Revolut (via Enable Banking) for an automatic twice-daily
 import of the EUR and GBP joint accounts, merged into one currency on the

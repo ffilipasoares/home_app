@@ -49,6 +49,8 @@ export type UserSettings = {
   displayCurrency?: DisplayCurrency;
   /** The currency Filipa's salary is paid and entered in; EUR if not set. */
   salaryCurrency?: DisplayCurrency;
+  /** Filipa's salary typed in Settings (in salaryCurrency), used for every month. Unset/null: detected each month. */
+  filipaSalaryAmount?: number | null;
   /** João's salary as he's actually paid it, the same every month. Unset: the older per-month Dashboard entry is used. */
   joaoSalary?: { amount: number; currency: DisplayCurrency } | null;
 };

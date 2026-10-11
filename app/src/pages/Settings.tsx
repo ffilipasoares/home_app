@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
+import { subscribeDashboard } from "../lib/dashboard";
+import { formatCurrency } from "../lib/format";
+import { useSelectedMonth } from "../lib/selectedMonth";
 import {
   resetCategoriesToDefaults,
   saveDisplayCurrency,
@@ -13,7 +16,7 @@ import { FixedItemsEditor } from "../components/FixedItemsEditor";
 import { BankConnectionCard } from "../components/BankConnectionCard";
 import { CurrencySelect } from "../components/CurrencySelect";
 import { ENTRY_CURRENCY } from "../types";
-import type { CategoryDef, SavingsGoal, UserSettings } from "../types";
+import type { CategoryDef, DashboardDoc, SavingsGoal, UserSettings } from "../types";
 
 export function Settings() {
   const { user, signOut } = useAuth();
@@ -26,6 +29,11 @@ export function Settings() {
 
   useEffect(() => subscribeUserSettings(uid, setSettings), [uid]);
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
+
+  // The month picked on the Dashboard, for "detected in <month>".
+  const { month } = useSelectedMonth();
+  const [dashboard, setDashboard] = useState<DashboardDoc | null>(null);
+  useEffect(() => subscribeDashboard(uid, month, setDashboard), [uid, month]);
 
   async function handleSave(section: string) {
     if (!settings) return;
@@ -69,6 +77,10 @@ export function Settings() {
     await resetCategoriesToDefaults(uid);
   }
 
+  const salaryCurrency = settings?.salaryCurrency ?? ENTRY_CURRENCY;
+  const detectedRaw = dashboard?.views?.[salaryCurrency]?.autoDetectedFilipaSalary ?? 0;
+  const detected = detectedRaw > 0 ? detectedRaw : null;
+
   if (!settings) {
     return (
       <div className="screen">
@@ -80,12 +92,6 @@ export function Settings() {
   return (
     <div className="screen">
       <h1>Settings</h1>
-
-      <p className="empty-state" style={{ padding: "4px 0 16px", textAlign: "left" }}>
-        Salary and any partner income/contribution now live on the <strong>Dashboard</strong>,
-        per month — so scrolling back shows exactly what applied that month, not whatever
-        this page currently says.
-      </p>
 
       <BankConnectionCard uid={uid} />
 
@@ -112,14 +118,31 @@ export function Settings() {
       <div className="card">
         <h2>Salaries</h2>
         <div className="field">
-          <label>Filipa's salary is paid in</label>
-          <CurrencySelect
-            label="Filipa's salary currency"
-            value={settings.salaryCurrency ?? ENTRY_CURRENCY}
-            onChange={(salaryCurrency) => setSettings({ ...settings, salaryCurrency })}
-          />
+          <label>Filipa's salary</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <AmountInput
+              label="Filipa's salary"
+              value={settings.filipaSalaryAmount ?? null}
+              placeholder="Detected"
+              onChange={(filipaSalaryAmount) => setSettings({ ...settings, filipaSalaryAmount })}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <CurrencySelect
+              label="Filipa's salary currency"
+              value={salaryCurrency}
+              onChange={(salaryCurrency) => setSettings({ ...settings, salaryCurrency })}
+            />
+          </div>
           <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-            Detected from your transactions each month, or entered on the Dashboard.
+            {detected !== null ? (
+              <>
+                Detected in {month}: {formatCurrency(detected, salaryCurrency)}.{" "}
+              </>
+            ) : (
+              <>Nothing detected in {month}. </>
+            )}
+            Leave the box empty to use the salary detected from your transactions each month, or type the amount to
+            use it every month.
           </p>
         </div>
         <div className="field" style={{ marginBottom: 0 }}>

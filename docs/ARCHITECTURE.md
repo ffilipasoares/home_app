@@ -332,9 +332,9 @@ users/{uid}
 users/{uid}/settings/categories        (single doc)
   categories: [ { id, label, special?: "income"|"savings" }, ... ]   -- editable, seeded from §7
 
-users/{uid}/monthlyIncome/{YYYY-MM}
-  filipaSalary: number | null,   -- manual override; null = use auto-detected
-  joaoSalary: number | null      -- always manual — never lands in this account, nothing to auto-detect
+users/{uid}/monthlyIncome/{YYYY-MM}   -- older per-month entries; no longer edited
+  filipaSalary: number | null,   -- ignored now: Filipa's salary is users/{uid}.filipaSalaryAmount or detected
+  joaoSalary: number | null      -- used only for a month when users/{uid}.joaoSalary isn't set
 
 users/{uid}/accounts/{accountId}
   provider, displayName, currency, consentExpiresAt, status
@@ -439,14 +439,14 @@ after Phase 0 testing:
   in their own **Investments** block (net amount invested that month and
   each transfer), never in Expenses by category, never subtracted from
   money left, never part of the savings meter.
-- Income editor, right on the Dashboard, for the month being viewed:
-  **Filipa's Salary** and **João's Salary**, side by side, both editable
-  — not a single salary field plus a generic "other income" list. Only
-  Filipa's has an auto-detected hint (a real "Salary"-category
-  transaction can land in this account; João's never does, so his is
-  always a plain manual number). Both are per-month data
-  (`monthlyIncome/{month}`, §6), not a global default, so scrolling back
-  to an old month shows what actually applied then.
+- Income card on the Dashboard, read-only, for the month being viewed:
+  **Filipa's Salary** and **João's Salary**, side by side. Both are set
+  in Settings (decided by the user, to keep the Dashboard clear):
+  Filipa's is detected each month from "Salary"-category transactions
+  unless an amount is typed in Settings (`filipaSalaryAmount`, then used
+  every month; Settings shows what was detected for the selected month);
+  João's is always the Settings amount (it never lands in this account,
+  so there's nothing to detect).
 - A transaction categorized as income and dated in the **last week of its
   month** is treated as *next* month's salary automatically
   (`functions/budget_month.py`) — paid a few days early is a common
@@ -466,10 +466,10 @@ after Phase 0 testing:
 - **Money left** = `(filipaSalary + joaoSalary) − Σ(expenses) − Σfixed
   expenses` — income minus real spend, where fixed expenses are costs paid
   from another account (e.g. rent) that leave the household's money just
-  the same, and `filipaSalary` is your manual entry for the month if you
-  gave one, else the auto-detected "income"-category transaction total,
-  else 0 (flagged on the Dashboard as "not recorded" rather than silently
-  treated as zero). Money left is also what you save that month; the
+  the same, and `filipaSalary` is the amount typed in Settings if there
+  is one, else the auto-detected "income"-category transaction total,
+  else 0 (shown on the Dashboard as "Not detected yet" rather than
+  silently treated as zero). Money left is also what you save that month; the
   savings goal is **not** subtracted, it's the target money left is
   compared against. Changing fixed
   expenses, the savings goal or a salary setting recalculates every month

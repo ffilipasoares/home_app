@@ -1,8 +1,7 @@
 """Recomputes users/{uid}/dashboards/{month} from scratch: transactions for
-the month, plus that month's own income record (monthlyIncome/{month} — a
-per-month value on purpose, so recomputing October never changes what
-August's dashboard says), plus the global fixed-expenses/savings-goal
-settings. Always a full re-sum rather than an incremental +/- — at one
+the month (Filipa's salary detected from them), plus the settings: salaries
+typed in Settings, fixed expenses and the savings goal (and, for João's
+salary when it isn't set, the month's older monthlyIncome/{month} entry). Always a full re-sum rather than an incremental +/- — at one
 household's transaction volume this is cheap, and it means the result is
 correct even if a write is retried or edited repeatedly (see main.py).
 
@@ -60,7 +59,9 @@ def recompute_month(uid: str, month: str) -> None:
     savings_goal = settings_data.get("savingsGoal", {"type": "fixed", "value": 0})
 
     income_data: MonthlyIncome = monthly_income_snap.to_dict() or {}  # type: ignore[assignment]
-    manual_filipa_salary = income_data.get("filipaSalary")
+    # Filipa's salary is typed in Settings now (the same every month) or
+    # detected; per-month amounts once typed on the Dashboard are no longer used.
+    manual_filipa_salary = settings_data.get("filipaSalaryAmount")
     joao_salary = income_data.get("joaoSalary") or 0.0
 
     rate_date = _month_rate_date(month)
@@ -83,7 +84,7 @@ def recompute_month(uid: str, month: str) -> None:
     # Hand-entered values, each as (amount, its own currency). Both salaries
     # are in the salary currency chosen in Settings.
     salary_currency = settings_data.get("salaryCurrency") or HOME_CURRENCY
-    filipa_manual = (manual_filipa_salary, salary_currency) if manual_filipa_salary is not None else None
+    filipa_manual = (float(manual_filipa_salary), salary_currency) if manual_filipa_salary is not None else None
     # João's salary is set once in Settings with its own currency; older
     # months may only have a per-month entry, in Filipa's salary currency.
     joao_setting = settings_data.get("joaoSalary")
@@ -176,10 +177,9 @@ def _view(
             return 0.0
         return amount * rate
 
-    # The manual, per-month entry is authoritative when present (it's the
-    # number you sat down and confirmed for this specific month) — it
+    # The amount typed in Settings is authoritative when present — it
     # doesn't add to the auto-detected figure, it replaces it, so a
-    # categorized transaction and a manual entry never double-count.
+    # categorized transaction and a typed amount never double-count.
     filipa_salary = convert(*filipa_manual) if filipa_manual is not None else auto_detected_salary
     filipa_salary_source = "manual" if filipa_manual is not None else ("auto" if auto_detected_salary > 0 else "none")
 

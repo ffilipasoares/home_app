@@ -45,6 +45,9 @@ class UserSettings(TypedDict, total=False):
     savingsGoal: SavingsGoal
     fixedExpenses: list[FixedLineItem]
     salaryCurrency: str  # the currency Filipa's salary is paid and entered in; EUR if not set
+    # Filipa's salary typed in Settings (in salaryCurrency), used for every
+    # month. None/unset: detected each month from Salary transactions.
+    filipaSalaryAmount: "float | None"
     # João's salary: the amount and currency he's actually paid, the same
     # every month. When unset, a per-month monthlyIncome.joaoSalary (in
     # salaryCurrency) is used instead, as before.

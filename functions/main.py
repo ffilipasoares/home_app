@@ -325,7 +325,7 @@ def _categorize_fixed_expenses(uid: str) -> bool:
 
 # Settings that feed every month's totals. displayCurrency isn't here: both
 # currencies are already computed, so switching it needs no recalculation.
-_TOTALS_SETTINGS = ("fixedExpenses", "savingsGoal", "salaryCurrency", "joaoSalary")
+_TOTALS_SETTINGS = ("fixedExpenses", "savingsGoal", "salaryCurrency", "filipaSalaryAmount", "joaoSalary")
 
 
 @firestore_fn.on_document_written(document="users/{uid}")

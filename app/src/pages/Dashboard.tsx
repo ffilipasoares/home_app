@@ -3,16 +3,14 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
-import { saveMonthlyIncome, subscribeMonthlyIncome } from "../lib/monthlyIncome";
 import { useSelectedMonth } from "../lib/selectedMonth";
 import { MonthPicker } from "../components/MonthPicker";
 import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
 import { formatCurrency } from "../lib/format";
-import { formatAmountInput, parseAmount } from "../lib/amount";
 import { DISPLAY_CURRENCIES, ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
-import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, MonthlyIncome, UserSettings } from "../types";
+import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
 
 /**
  * The figures for one currency. Dashboards computed before multi-currency
@@ -56,131 +54,51 @@ function ConvertedHint({ value, from, view }: { value: number | null; from: Disp
 }
 
 /**
- * Filipa's salary is in the currency chosen in Settings and shows the salary
- * detected from this month's transactions unless you type your own amount;
- * clearing the field goes back to the detected one. João's salary is set in
- * Settings (amount and currency) and only shown here.
+ * The month's income, read-only: Filipa's salary (typed in Settings, or
+ * detected from this month's Salary transactions) and João's (Settings).
+ * Each in the currency it's paid in, with the app currency underneath when
+ * that's different. Both are edited in Settings.
  */
-function IncomeEditor({
-  uid,
+function IncomeCard({
   month,
   salaryCurrency,
   salaryView,
   view,
   joaoSetting,
 }: {
-  uid: string;
   month: string;
   salaryCurrency: DisplayCurrency;
-  /** The dashboard figures in the salary currency (for the detected salary). */
+  /** The dashboard figures in the salary currency. */
   salaryView: DashboardView | null;
   /** The dashboard figures in the currency the Dashboard is showing. */
   view: DashboardView | null;
-  /** João's salary from Settings, if set (then it's not edited here). */
   joaoSetting: { amount: number; currency: DisplayCurrency } | null;
 }) {
-  const [income, setIncome] = useState<MonthlyIncome>({ filipaSalary: null, joaoSalary: null });
-  // What's typed in each box; null until edited, so the saved/detected value shows.
-  const [filipaDraft, setFilipaDraft] = useState<string | null>(null);
-  const [joaoDraft, setJoaoDraft] = useState<string | null>(null);
-  const [savedNote, setSavedNote] = useState<{ text: string; error?: boolean } | null>(null);
-
-  useEffect(
-    () =>
-      subscribeMonthlyIncome(uid, month, (next) => {
-        setIncome(next);
-        setFilipaDraft(null);
-        setJoaoDraft(null);
-      }),
-    [uid, month],
+  const filipa = salaryView && salaryView.filipaSalarySource !== "none" ? salaryView.filipaSalary : null;
+  const amount = (value: number | null, from: DisplayCurrency) => (
+    <>
+      {value !== null ? (
+        <div style={{ padding: "6px 0 0", fontWeight: 600, fontSize: 20 }}>{formatCurrency(value, from)}</div>
+      ) : (
+        <div style={{ padding: "6px 0 0", fontSize: 15, color: "var(--text-muted)" }}>Not detected yet</div>
+      )}
+      <ConvertedHint value={value} from={from} view={view} />
+    </>
   );
-
-  const detected = salaryView && salaryView.autoDetectedFilipaSalary > 0 ? salaryView.autoDetectedFilipaSalary : null;
-  const asText = (n: number | null) => formatAmountInput(n === null ? null : Math.round(n * 100) / 100);
-  // A box with something that isn't an amount counts as unchanged for the "≈" line.
-  const parse = (raw: string) => parseAmount(raw) ?? null;
-
-  const filipaShown = filipaDraft ?? (income.filipaSalary !== null ? asText(income.filipaSalary) : asText(detected));
-  const joaoShown = joaoDraft ?? asText(income.joaoSalary);
-  // Value used for the "≈" line: what's typed, else saved, else detected.
-  const filipaValue = filipaDraft !== null ? parse(filipaDraft) : (income.filipaSalary ?? detected);
-  const joaoValue = joaoDraft !== null ? parse(joaoDraft) : income.joaoSalary;
-
-  async function handleSave() {
-    const filipa = filipaDraft !== null ? parseAmount(filipaDraft) : income.filipaSalary;
-    const joao = joaoDraft !== null ? parseAmount(joaoDraft) : income.joaoSalary;
-    if (filipa === undefined || joao === undefined) {
-      setSavedNote({ text: "That isn't an amount; type it like 1833,38.", error: true });
-      return;
-    }
-    try {
-      // An untouched box keeps what was there; untouched detected stays automatic.
-      await saveMonthlyIncome(uid, month, { filipaSalary: filipa, joaoSalary: joao });
-      setSavedNote({ text: "Saved. The totals update in a few seconds." });
-      setTimeout(() => setSavedNote(null), 4000);
-    } catch (err) {
-      setSavedNote({ text: `Couldn't save: ${err instanceof Error ? err.message : String(err)}`, error: true });
-    }
-  }
-
-  const symbol = salaryCurrency === "GBP" ? "£" : "€";
 
   return (
     <div className="card">
       <h2>Income — {month}</h2>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
-          <label>
-            Filipa's Salary ({symbol})
-          </label>
-          <input
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            value={filipaShown}
-            placeholder="Not recorded"
-            onChange={(e) => setFilipaDraft(e.target.value)}
-          />
-          {income.filipaSalary !== null && filipaDraft === null && detected !== null && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-              Entered by you; detected was {formatCurrency(detected, salaryCurrency)}. Clear the box and save to use it.
-            </div>
-          )}
-          <ConvertedHint value={filipaValue} from={salaryCurrency} view={view} />
+        <div style={{ flex: "1 1 160px" }}>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Filipa's Salary</div>
+          {amount(filipa, salaryCurrency)}
         </div>
-        <div className="field" style={{ flex: "1 1 200px", marginBottom: 0 }}>
-          <label>João's Salary</label>
-          {joaoSetting ? (
-            <>
-              <div style={{ padding: "10px 0", fontWeight: 600 }}>
-                {formatCurrency(joaoSetting.amount, joaoSetting.currency)}
-              </div>
-              <ConvertedHint value={joaoSetting.amount} from={joaoSetting.currency} view={view} />
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>Set in Settings.</div>
-            </>
-          ) : (
-            <>
-              <input type="text" inputMode="decimal" autoComplete="off" value={joaoShown} placeholder="Set it in Settings" onChange={(e) => setJoaoDraft(e.target.value)} />
-              <ConvertedHint value={joaoValue} from={salaryCurrency} view={view} />
-            </>
-          )}
+        <div style={{ flex: "1 1 160px" }}>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>João's Salary</div>
+          {joaoSetting ? amount(joaoSetting.amount, joaoSetting.currency) : amount(view?.joaoSalary || null, view?.currency ?? salaryCurrency)}
         </div>
       </div>
-
-      <button type="button" className="button" style={{ marginTop: 14 }} onClick={handleSave}>
-        Save
-      </button>
-      {savedNote && (
-        <span style={{ marginLeft: 12, color: savedNote.error ? "var(--status-critical)" : "var(--status-good)" }}>
-          {savedNote.text}
-        </span>
-      )}
-
-      {salaryView && salaryView.filipaSalarySource === "none" && (
-        <p style={{ color: "var(--status-warning)", fontSize: 13, marginTop: 10, marginBottom: 0 }}>
-          No salary recorded for Filipa this month yet — money left below excludes it until you add one.
-        </p>
-      )}
     </div>
   );
 }
@@ -247,8 +165,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <IncomeEditor
-        uid={uid}
+      <IncomeCard
         month={month}
         salaryCurrency={salaryCurrency}
         salaryView={viewFor(dashboard, salaryCurrency)}
