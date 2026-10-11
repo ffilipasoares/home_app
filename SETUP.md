@@ -120,8 +120,8 @@ firebase deploy --only firestore:rules,firestore:indexes
 # Cloud Functions (categorization + dashboard recompute)
 firebase deploy --only functions
 
-# Build and deploy the PWA
-cd app && npm run build && cd ..
+# Build and deploy the PWA (deploying hosting runs `npm run build` in app/
+# first, see firebase.json, so the site is never an old build)
 firebase deploy --only hosting
 ```
 
