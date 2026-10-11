@@ -8,6 +8,7 @@ import { MonthPicker } from "../components/MonthPicker";
 import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
+import { currentMonth } from "../lib/month";
 import { formatCurrency } from "../lib/format";
 import { DISPLAY_CURRENCIES, ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
@@ -205,12 +206,13 @@ export function Dashboard() {
           <div className="card">
             <h2>Savings goal</h2>
             <SavingsMeter
-              actual={totals.savedSoFar}
-              target={view.savingsGoalTarget}
+              saved={totals.savedSoFar}
+              goal={view.savingsGoalTarget}
+              monthOver={month < currentMonth()}
               currency={currency}
             />
             <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-              Money left already has the goal set aside. Saved so far = income − spending − fixed expenses.
+              Saved = income − spending − fixed expenses.
             </p>
           </div>
 

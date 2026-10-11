@@ -245,7 +245,7 @@ input[type="month"] {
 .meter-track {
   height: 16px;
   border-radius: 8px;
-  background: var(--seq-150);
+  background: var(--border);
   position: relative;
   overflow: hidden;
 }
