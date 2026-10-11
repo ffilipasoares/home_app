@@ -1,32 +1,28 @@
 import { motion } from "framer-motion";
 import { formatMoney } from "../../lib/format";
 
-/** One bar splitting the month's income into spent, fixed bills, the savings goal and what's free. */
+/** One bar splitting the month's income into spent (spending + fixed bills), the savings goal and what's free. */
 export function IncomeAllocation({
   income,
   spent,
-  fixed,
   goal,
-  saved,
   currency,
 }: {
   income: number;
+  /** Spending plus fixed bills. */
   spent: number;
-  fixed: number;
   goal: number;
-  /** income − spent − fixed */
-  saved: number;
   currency: string;
 }) {
+  const saved = income - spent;
   const goalPart = Math.max(0, Math.min(goal, saved));
   const free = Math.max(0, saved - goal);
   const segments = [
     { key: "spent", label: "Spent", amount: spent, color: "bg-coral" },
-    { key: "fixed", label: "Fixed bills", amount: fixed, color: "bg-subtle" },
     { key: "goal", label: "Savings goal", amount: goalPart, color: "bg-violet" },
     { key: "free", label: "Free to spend", amount: free, color: "bg-accent" },
   ];
-  const total = Math.max(income, spent + fixed + goalPart + free) || 1;
+  const total = Math.max(income, spent + goalPart + free) || 1;
 
   return (
     <div className="mt-6 px-1">
@@ -48,16 +44,14 @@ export function IncomeAllocation({
             />
           ))}
       </div>
-      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">
+      <dl className="mt-4 space-y-2.5">
         {segments.map((s) => (
-          <div key={s.key} className="min-w-0">
-            <dt className="flex items-center gap-2 whitespace-nowrap text-[13px] text-muted">
+          <div key={s.key} className="flex items-center justify-between gap-3">
+            <dt className="flex items-center gap-2 text-[14px] text-muted">
               <span className={`h-2 w-2 shrink-0 rounded-full ${s.color}`} aria-hidden="true" />
               {s.label}
             </dt>
-            <dd className="mt-0.5 truncate pl-4 text-[15px] font-semibold tabular-nums text-ink">
-              {formatMoney(s.amount, currency)}
-            </dd>
+            <dd className="text-[15px] font-semibold tabular-nums text-ink">{formatMoney(s.amount, currency)}</dd>
           </div>
         ))}
       </dl>

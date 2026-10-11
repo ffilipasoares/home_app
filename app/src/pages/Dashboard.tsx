@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { useSelectedMonth } from "../lib/selectedMonth";
-import { currentMonth, formatMonth, formatShortDate } from "../lib/month";
+import { formatMonth, formatShortDate } from "../lib/month";
 import { formatMoney } from "../lib/format";
 import { PageHeader } from "../components/ui/PageHeader";
 import { IconTile } from "../components/ui/IconTile";
@@ -15,7 +15,6 @@ import { CategoryIcon } from "../components/CategoryIcon";
 import { categoryLook } from "../lib/categoryLook";
 import { MoneyLeftHero } from "../components/dashboard/MoneyLeftHero";
 import { IncomeAllocation } from "../components/dashboard/IncomeAllocation";
-import { SavingsGoalSection } from "../components/dashboard/SavingsGoalSection";
 import { ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
 
@@ -78,7 +77,6 @@ export function Dashboard() {
   // formula (its moneyLeft is the same sum: functions/dashboard.py).
   const totals = view && {
     income: view.filipaSalary + view.joaoSalary,
-    saved: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal,
     moneyLeft: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal - view.savingsGoalTarget,
   };
 
@@ -155,20 +153,11 @@ export function Dashboard() {
               <MoneyLeftHero moneyLeft={totals.moneyLeft} goal={view.savingsGoalTarget} currency={currency} />
               <IncomeAllocation
                 income={totals.income}
-                spent={view.totalExpenses}
-                fixed={view.fixedExpensesTotal}
+                spent={view.totalExpenses + view.fixedExpensesTotal}
                 goal={view.savingsGoalTarget}
-                saved={totals.saved}
                 currency={currency}
               />
             </div>
-
-            <SavingsGoalSection
-              saved={totals.saved}
-              goal={view.savingsGoalTarget}
-              monthOver={month < currentMonth()}
-              currency={currency}
-            />
 
             <section aria-labelledby="income-heading">
               <SectionHeader
