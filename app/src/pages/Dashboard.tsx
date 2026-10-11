@@ -10,6 +10,7 @@ import { StatTile } from "../components/StatTile";
 import { CategoryBarChart } from "../components/CategoryBarChart";
 import { SavingsMeter } from "../components/SavingsMeter";
 import { formatCurrency } from "../lib/format";
+import { formatAmountInput, parseAmount } from "../lib/amount";
 import { DISPLAY_CURRENCIES, ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, MonthlyIncome, UserSettings } from "../types";
 
@@ -82,7 +83,7 @@ function IncomeEditor({
   // What's typed in each box; null until edited, so the saved/detected value shows.
   const [filipaDraft, setFilipaDraft] = useState<string | null>(null);
   const [joaoDraft, setJoaoDraft] = useState<string | null>(null);
-  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [savedNote, setSavedNote] = useState<{ text: string; error?: boolean } | null>(null);
 
   useEffect(
     () =>
@@ -95,8 +96,9 @@ function IncomeEditor({
   );
 
   const detected = salaryView && salaryView.autoDetectedFilipaSalary > 0 ? salaryView.autoDetectedFilipaSalary : null;
-  const asText = (n: number | null) => (n === null ? "" : String(Math.round(n * 100) / 100));
-  const parse = (raw: string) => (raw.trim() === "" ? null : Number(raw));
+  const asText = (n: number | null) => formatAmountInput(n === null ? null : Math.round(n * 100) / 100);
+  // A box with something that isn't an amount counts as unchanged for the "≈" line.
+  const parse = (raw: string) => parseAmount(raw) ?? null;
 
   const filipaShown = filipaDraft ?? (income.filipaSalary !== null ? asText(income.filipaSalary) : asText(detected));
   const joaoShown = joaoDraft ?? asText(income.joaoSalary);
@@ -105,13 +107,20 @@ function IncomeEditor({
   const joaoValue = joaoDraft !== null ? parse(joaoDraft) : income.joaoSalary;
 
   async function handleSave() {
-    await saveMonthlyIncome(uid, month, {
+    const filipa = filipaDraft !== null ? parseAmount(filipaDraft) : income.filipaSalary;
+    const joao = joaoDraft !== null ? parseAmount(joaoDraft) : income.joaoSalary;
+    if (filipa === undefined || joao === undefined) {
+      setSavedNote({ text: "That isn't an amount; type it like 1833,38.", error: true });
+      return;
+    }
+    try {
       // An untouched box keeps what was there; untouched detected stays automatic.
-      filipaSalary: filipaDraft !== null ? parse(filipaDraft) : income.filipaSalary,
-      joaoSalary: joaoDraft !== null ? parse(joaoDraft) : income.joaoSalary,
-    });
-    setSavedNote("Saved.");
-    setTimeout(() => setSavedNote(null), 2000);
+      await saveMonthlyIncome(uid, month, { filipaSalary: filipa, joaoSalary: joao });
+      setSavedNote({ text: "Saved. The totals update in a few seconds." });
+      setTimeout(() => setSavedNote(null), 4000);
+    } catch (err) {
+      setSavedNote({ text: `Couldn't save: ${err instanceof Error ? err.message : String(err)}`, error: true });
+    }
   }
 
   const symbol = salaryCurrency === "GBP" ? "£" : "€";
@@ -125,7 +134,9 @@ function IncomeEditor({
             Filipa's Salary ({symbol})
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
             value={filipaShown}
             placeholder="Not recorded"
             onChange={(e) => setFilipaDraft(e.target.value)}
@@ -149,7 +160,7 @@ function IncomeEditor({
             </>
           ) : (
             <>
-              <input type="number" value={joaoShown} placeholder="Set it in Settings" onChange={(e) => setJoaoDraft(e.target.value)} />
+              <input type="text" inputMode="decimal" autoComplete="off" value={joaoShown} placeholder="Set it in Settings" onChange={(e) => setJoaoDraft(e.target.value)} />
               <ConvertedHint value={joaoValue} from={salaryCurrency} view={view} />
             </>
           )}
@@ -159,7 +170,11 @@ function IncomeEditor({
       <button type="button" className="button" style={{ marginTop: 14 }} onClick={handleSave}>
         Save
       </button>
-      {savedNote && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>{savedNote}</span>}
+      {savedNote && (
+        <span style={{ marginLeft: 12, color: savedNote.error ? "var(--status-critical)" : "var(--status-good)" }}>
+          {savedNote.text}
+        </span>
+      )}
 
       {salaryView && salaryView.filipaSalarySource === "none" && (
         <p style={{ color: "var(--status-warning)", fontSize: 13, marginTop: 10, marginBottom: 0 }}>

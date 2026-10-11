@@ -1,3 +1,4 @@
+import { AmountInput } from "./AmountInput";
 import { CurrencySelect } from "./CurrencySelect";
 import { ENTRY_CURRENCY, type CategoryDef, type FixedLineItem } from "../types";
 
@@ -57,10 +58,10 @@ export function FixedItemsEditor({
               onChange={(e) => rename(item.id, e.target.value)}
               style={{ flex: 1, minWidth: 120 }}
             />
-            <input
-              type="number"
+            <AmountInput
+              label={`Amount for ${item.label || "this expense"}`}
               value={item.amount}
-              onChange={(e) => update(item.id, { amount: Number(e.target.value) })}
+              onChange={(amount) => update(item.id, { amount: amount ?? 0 })}
               style={{ width: 110 }}
             />
             <CurrencySelect value={item.currency ?? ENTRY_CURRENCY} onChange={(currency) => update(item.id, { currency })} />

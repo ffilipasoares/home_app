@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { parseAmount } from "../lib/amount";
 import { addManualTransaction } from "../lib/transactions";
 import { CurrencySelect } from "./CurrencySelect";
 import type { CategoryDef, DisplayCurrency } from "../types";
@@ -33,9 +34,9 @@ export function AddTransactionForm({
   const [busy, setBusy] = useState(false);
 
   async function handleSave() {
-    const value = Number(amount);
+    const value = parseAmount(amount);
     if (!description.trim()) return setError("Add a description, e.g. the shop or what it was for.");
-    if (!amount || !Number.isFinite(value) || value <= 0) return setError("Enter an amount above 0.");
+    if (value === null || value === undefined || value <= 0) return setError("Enter an amount above 0, e.g. 12,50.");
     if (!date) return setError("Pick a date.");
     setBusy(true);
     setError(null);
@@ -74,12 +75,12 @@ export function AddTransactionForm({
             <option value="in">Received</option>
           </select>
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            step="0.01"
-            min="0"
+            autoComplete="off"
+            aria-label="Amount"
             value={amount}
-            placeholder="0.00"
+            placeholder="0,00"
             onChange={(e) => setAmount(e.target.value)}
             style={{ flex: 1, minWidth: 70 }}
           />

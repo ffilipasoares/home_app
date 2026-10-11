@@ -8,6 +8,7 @@ import {
   subscribeCategories,
   subscribeUserSettings,
 } from "../lib/settings";
+import { AmountInput } from "../components/AmountInput";
 import { FixedItemsEditor } from "../components/FixedItemsEditor";
 import { BankConnectionCard } from "../components/BankConnectionCard";
 import { CurrencySelect } from "../components/CurrencySelect";
@@ -124,17 +125,15 @@ export function Settings() {
         <div className="field" style={{ marginBottom: 0 }}>
           <label>João's salary</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <input
-              type="number"
-              value={settings.joaoSalary?.amount ?? ""}
+            <AmountInput
+              label="João's salary"
+              value={settings.joaoSalary?.amount ?? null}
               placeholder="Not set"
-              onChange={(e) =>
+              onChange={(amount) =>
                 setSettings({
                   ...settings,
                   joaoSalary:
-                    e.target.value === ""
-                      ? null
-                      : { amount: Number(e.target.value), currency: settings.joaoSalary?.currency ?? ENTRY_CURRENCY },
+                    amount === null ? null : { amount, currency: settings.joaoSalary?.currency ?? ENTRY_CURRENCY },
                 })
               }
               style={{ flex: 1, minWidth: 0 }}
@@ -166,10 +165,10 @@ export function Settings() {
         <div className="field">
           <label>{settings.savingsGoal.type === "fixed" ? "Amount" : "Percent (%)"}</label>
           <div style={{ display: "flex", gap: 8 }}>
-            <input
-              type="number"
+            <AmountInput
+              label={settings.savingsGoal.type === "fixed" ? "Savings goal amount" : "Savings goal percent"}
               value={settings.savingsGoal.value}
-              onChange={(e) => updateGoal({ value: Number(e.target.value) })}
+              onChange={(value) => updateGoal({ value: value ?? 0 })}
               style={{ flex: 1, minWidth: 0 }}
             />
             {settings.savingsGoal.type === "fixed" && (
