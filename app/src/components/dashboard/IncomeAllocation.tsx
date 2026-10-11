@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { PiggyBankIcon } from "lucide-react";
 import { formatMoney } from "../../lib/format";
 
 /** One bar splitting the month's income into spent (spending + fixed bills), the savings goal and what's free. */
@@ -26,7 +27,18 @@ export function IncomeAllocation({
 
   return (
     <div className="mt-6 px-1">
-      <h2 className="text-base font-semibold">Where your income goes</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="whitespace-nowrap text-base font-semibold">Where your income goes</h2>
+        {/* Total savings: the goal set aside plus what's still free to spend. */}
+        <span
+          className="flex shrink-0 items-center gap-1 text-[13px] font-medium tabular-nums text-muted"
+          aria-label={`Saved ${formatMoney(goalPart + free, currency)}`}
+          title="Saved: savings goal + free to spend"
+        >
+          <PiggyBankIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          {formatMoney(goalPart + free, currency)}
+        </span>
+      </div>
       <div
         className="mt-3 flex h-3 w-full gap-[3px] overflow-hidden rounded-full bg-raised"
         role="img"
