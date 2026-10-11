@@ -194,7 +194,6 @@ export function Dashboard() {
     return rate != null ? value * rate : null;
   };
   const otherCurrency = DISPLAY_CURRENCIES.find((c) => c !== currency);
-  const otherRate = otherCurrency ? view?.rates[otherCurrency] : null;
 
   const categoryLabel = (id: string) =>
     id === UNCATEGORIZED_FIXED ? "Fixed expenses, no category yet" : (categories.find((c) => c.id === id)?.label ?? id);
@@ -256,32 +255,10 @@ export function Dashboard() {
             <StatTile label="Income this month" value={view.filipaSalary + view.joaoSalary} currency={currency} />
             <StatTile label="Money left" value={view.moneyLeft} hero currency={currency} />
           </div>
-          {(dashboard?.pendingCount ?? 0) > 0 && (
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
-              Includes {dashboard!.pendingCount} pending card payment{dashboard!.pendingCount === 1 ? "" : "s"} not settled
-              by the bank yet; amounts can still change slightly.
-            </p>
-          )}
-          <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
-            Money left = income {formatCurrency(view.filipaSalary + view.joaoSalary, currency)} − spending{" "}
-            {formatCurrency(view.totalExpenses, currency)} − fixed expenses{" "}
-            {formatCurrency(view.fixedExpensesTotal, currency)}.
-          </p>
-
-          {otherCurrency && view.rateDate && (
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: -4 }}>
-              {view.missingRate ? (
-                <>
-                  Some amounts you entered in {otherCurrency} aren't included right now: the exchange rate couldn't be
-                  looked up.
-                </>
-              ) : otherRate != null ? (
-                <>
-                  Amounts you entered in {otherCurrency} are shown at 1 {otherCurrency} ={" "}
-                  {otherRate.toLocaleString(undefined, { maximumFractionDigits: 6 })} {currency} (ECB rate, {view.rateDate}).
-                  Transactions use the rate for their own date.
-                </>
-              ) : null}
+          {view.missingRate && otherCurrency && (
+            <p style={{ fontSize: 12, color: "var(--status-warning)", marginTop: -4 }}>
+              Some amounts you entered in {otherCurrency} aren't included right now: the exchange rate couldn't be looked
+              up.
             </p>
           )}
 
@@ -292,6 +269,21 @@ export function Dashboard() {
               What you save is what's left at the end of the month (money left). During the month this shows how much is
               left so far.
             </p>
+          </div>
+
+          <div className="card">
+            <h2>Money spent</h2>
+            <div className="stat-value" style={{ fontSize: 28, marginBottom: 8 }}>
+              {formatCurrency(view.totalExpenses + view.fixedExpensesTotal, currency)}
+            </div>
+            <div className="tx-row">
+              <span>Spending</span>
+              <span className="tx-amount">{formatCurrency(view.totalExpenses, currency)}</span>
+            </div>
+            <div className="tx-row">
+              <span>Fixed expenses</span>
+              <span className="tx-amount">{formatCurrency(view.fixedExpensesTotal, currency)}</span>
+            </div>
           </div>
 
           <div className="card">
