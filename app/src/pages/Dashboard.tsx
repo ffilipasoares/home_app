@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { useSelectedMonth } from "../lib/selectedMonth";
-import { formatMonth, formatShortDate } from "../lib/month";
+import { currentMonth, formatMonth, formatShortDate } from "../lib/month";
 import { formatMoney } from "../lib/format";
 import { PageHeader } from "../components/ui/PageHeader";
 import { IconTile } from "../components/ui/IconTile";
@@ -15,6 +15,7 @@ import { CategoryIcon } from "../components/CategoryIcon";
 import { categoryLook } from "../lib/categoryLook";
 import { MoneyLeftHero } from "../components/dashboard/MoneyLeftHero";
 import { IncomeAllocation } from "../components/dashboard/IncomeAllocation";
+import { EstimatedSavings } from "../components/dashboard/EstimatedSavings";
 import { ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
 
@@ -293,6 +294,20 @@ export function Dashboard() {
                 </ul>
               )}
             </section>
+
+            {month === currentMonth() && (
+              <EstimatedSavings
+                spentByCategory={byCategory}
+                fixedCategoryIds={
+                  new Set(fixedSpending.map((f) => (f.category && categoryById(f.category) ? f.category : UNCATEGORIZED_FIXED)))
+                }
+                income={totals.income}
+                month={month}
+                currency={currency}
+                categoryById={categoryById}
+                categoryLabel={categoryLabel}
+              />
+            )}
           </>
         )}
       </div>

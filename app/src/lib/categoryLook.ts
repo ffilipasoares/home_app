@@ -25,18 +25,18 @@ const UNCATEGORIZED: CategoryLook = { icon: CircleDashedIcon, color: "#A1A1AA" }
 // Categories are free text (Settings), so the look is picked from words in
 // the id/name; anything unrecognised gets a tag in a colour of its own.
 const BY_KEYWORD: [RegExp, CategoryLook][] = [
-  [/groc|supermarket|market/, { icon: ShoppingBasketIcon, color: "#4ADE80" }],
-  [/food|dining|restaurant|eat|takeaway|cafe/, { icon: UtensilsCrossedIcon, color: "#FB923C" }],
-  [/travel|holiday|trip|flight/, { icon: PlaneIcon, color: "#2DD4BF" }],
-  [/transport|car|fuel|uber|bolt|train|bus/, { icon: TrainFrontIcon, color: "#22D3EE" }],
-  [/home|hous|rent|mortgage/, { icon: HomeIcon, color: "#60A5FA" }],
-  [/need|bill|utilit|energy/, { icon: ZapIcon, color: "#FACC15" }],
-  [/health|insur|gym|pharm|doctor/, { icon: HeartPulseIcon, color: "#F87171" }],
-  [/shop|cloth/, { icon: ShoppingBagIcon, color: "#F472B6" }],
-  [/subscr/, { icon: RepeatIcon, color: "#A78BFA" }],
-  [/entertain|fun|leisure|cinema|going out/, { icon: ClapperboardIcon, color: "#E879F9" }],
-  [/personal|pocket/, { icon: WalletIcon, color: "#E879F9" }],
-  [/other|misc|uncategor/, UNCATEGORIZED],
+  [/groc|supermarket|market|supermerc|mercearia|compras de casa/, { icon: ShoppingBasketIcon, color: "#4ADE80" }],
+  [/food|dining|restaurant|eat|takeaway|cafe|alimenta|comida|restaura/, { icon: UtensilsCrossedIcon, color: "#FB923C" }],
+  [/travel|holiday|trip|flight|viage|ferias|férias/, { icon: PlaneIcon, color: "#2DD4BF" }],
+  [/transport|car|fuel|uber|bolt|train|bus|combust|carro/, { icon: TrainFrontIcon, color: "#22D3EE" }],
+  [/home|hous|rent|mortgage|habita|casa|renda/, { icon: HomeIcon, color: "#60A5FA" }],
+  [/need|bill|utilit|energy|contas|necessid/, { icon: ZapIcon, color: "#FACC15" }],
+  [/health|insur|gym|pharm|doctor|saude|saúde|seguro|ginasio|ginásio|farm/, { icon: HeartPulseIcon, color: "#F87171" }],
+  [/shop|cloth|roupa|compra/, { icon: ShoppingBagIcon, color: "#F472B6" }],
+  [/subscr|subscri|assinatura/, { icon: RepeatIcon, color: "#A78BFA" }],
+  [/entertain|fun|leisure|cinema|going out|lazer/, { icon: ClapperboardIcon, color: "#E879F9" }],
+  [/personal|pocket|pessoal/, { icon: WalletIcon, color: "#E879F9" }],
+  [/other|misc|uncategor|divers|outro/, UNCATEGORIZED],
 ];
 
 const EXTRA_COLORS = ["#FDBA74", "#93C5FD", "#86EFAC", "#FCA5A5", "#C4B5FD", "#67E8F9"];
