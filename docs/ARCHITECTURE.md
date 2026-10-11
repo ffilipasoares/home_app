@@ -207,9 +207,13 @@ distributing a native app:
   writes/updates the merchant → category learned rule, and recomputes that
   month's dashboard rollup — so a manual correction immediately improves
   future auto-categorization and is reflected on the dashboard.
-- Charting: bar/donut for spend-by-category, a progress bar for the
-  savings goal, a single "money left" stat tile — plain Recharts/Chart.js
-  is more than enough; no separate BI tool needed for one user's dashboard.
+- UI: a dark, phone-first design (from a Magic Patterns mock-up) built with
+  Tailwind CSS (`app/tailwind.config.js` holds the colour tokens), lucide
+  icons and framer-motion for the bottom sheets. Edits happen in bottom
+  sheets; the Dashboard is a "money left" hero, an income-allocation bar,
+  goal vs saved, and per-category bars — plain divs, no chart library.
+  Categories are free text, so their icon and colour are picked from words
+  in the name (`app/src/lib/categoryLook.ts`).
 
 ## 4. Data flow (daily run)
 

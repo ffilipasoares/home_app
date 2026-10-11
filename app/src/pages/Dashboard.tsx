@@ -1,16 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AlertTriangleIcon, CalendarClockIcon, ChevronRightIcon, CreditCardIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { subscribeAvailableMonths, subscribeDashboard } from "../lib/dashboard";
 import { subscribeCategories, subscribeUserSettings } from "../lib/settings";
 import { useSelectedMonth } from "../lib/selectedMonth";
-import { MonthPicker } from "../components/MonthPicker";
-import { StatTile } from "../components/StatTile";
-import { CategoryBarChart } from "../components/CategoryBarChart";
-import { SavingsMeter } from "../components/SavingsMeter";
-import { currentMonth } from "../lib/month";
-import { formatCurrency } from "../lib/format";
-import { DISPLAY_CURRENCIES, ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
+import { currentMonth, formatMonth, formatShortDate } from "../lib/month";
+import { formatMoney } from "../lib/format";
+import { PageHeader } from "../components/ui/PageHeader";
+import { IconTile } from "../components/ui/IconTile";
+import { Notice, RowGroup, SectionHeader, ValueRow } from "../components/ui/ValueRow";
+import { MonthSwitcher } from "../components/MonthSwitcher";
+import { CategoryIcon } from "../components/CategoryIcon";
+import { categoryLook } from "../lib/categoryLook";
+import { MoneyLeftHero } from "../components/dashboard/MoneyLeftHero";
+import { IncomeAllocation } from "../components/dashboard/IncomeAllocation";
+import { SavingsGoalSection } from "../components/dashboard/SavingsGoalSection";
+import { ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
 import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
 
 /**
@@ -21,8 +27,6 @@ import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSet
 function viewFor(dashboard: DashboardDoc | null, currency: DisplayCurrency): DashboardView | null {
   if (!dashboard) return null;
   const view = dashboard.views?.[currency];
-  // Views computed by the previous version have no `rates` yet; treat them as
-  // "no rate known" until the month is recalculated.
   if (view) return { ...view, rates: view.rates ?? { [currency]: 1 }, missingRate: view.missingRate ?? false };
   if (currency !== "EUR" || dashboard.moneyLeft === undefined) return null;
   return {
@@ -43,71 +47,16 @@ function viewFor(dashboard: DashboardDoc | null, currency: DisplayCurrency): Das
   };
 }
 
-/** "≈ £2,094.02" under an amount entered in another currency than the one shown. */
-function ConvertedHint({ value, from, view }: { value: number | null; from: DisplayCurrency; view: DashboardView | null }) {
-  if (value === null || !view || from === view.currency) return null;
-  const rate = view.rates[from];
-  return (
-    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-      {rate != null ? <>≈ {formatCurrency(value * rate, view.currency)}</> : <>{view.currency} rate unavailable right now</>}
-    </div>
-  );
-}
-
-/**
- * The month's income, read-only: Filipa's salary (typed in Settings, or
- * detected from this month's Salary transactions) and João's (Settings).
- * Each in the currency it's paid in, with the app currency underneath when
- * that's different. Both are edited in Settings.
- */
-function IncomeCard({
-  month,
-  salaryCurrency,
-  salaryView,
-  view,
-  joaoSetting,
-}: {
-  month: string;
-  salaryCurrency: DisplayCurrency;
-  /** The dashboard figures in the salary currency. */
-  salaryView: DashboardView | null;
-  /** The dashboard figures in the currency the Dashboard is showing. */
-  view: DashboardView | null;
-  joaoSetting: { amount: number; currency: DisplayCurrency } | null;
-}) {
-  const filipa = salaryView && salaryView.filipaSalarySource !== "none" ? salaryView.filipaSalary : null;
-  const amount = (value: number | null, from: DisplayCurrency) => (
-    <>
-      {value !== null ? (
-        <div style={{ padding: "6px 0 0", fontWeight: 600, fontSize: 20 }}>{formatCurrency(value, from)}</div>
-      ) : (
-        <div style={{ padding: "6px 0 0", fontSize: 15, color: "var(--text-muted)" }}>Not detected yet</div>
-      )}
-      <ConvertedHint value={value} from={from} view={view} />
-    </>
-  );
-
-  return (
-    <div className="card">
-      <h2>Income — {month}</h2>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 160px" }}>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>Filipa's Salary</div>
-          {amount(filipa, salaryCurrency)}
-        </div>
-        <div style={{ flex: "1 1 160px" }}>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>João's Salary</div>
-          {joaoSetting ? amount(joaoSetting.amount, joaoSetting.currency) : amount(view?.joaoSalary || null, view?.currency ?? salaryCurrency)}
-        </div>
-      </div>
-    </div>
-  );
-}
+const FILIPA_SOURCE: Record<DashboardView["filipaSalarySource"], string> = {
+  manual: "Fixed amount",
+  auto: "Detected",
+  none: "Not detected yet",
+};
 
 export function Dashboard() {
   const { user } = useAuth();
   const uid = user!.uid;
-  const { month, setMonth } = useSelectedMonth();
+  const { month } = useSelectedMonth();
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [dashboard, setDashboard] = useState<DashboardDoc | null>(null);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
@@ -121,175 +70,243 @@ export function Dashboard() {
   // The app currency, chosen in Settings: every figure here is shown in it.
   const currency: DisplayCurrency = settings?.displayCurrency ?? ENTRY_CURRENCY;
   const view = viewFor(dashboard, currency);
-  const salaryCurrency: DisplayCurrency = settings?.salaryCurrency ?? ENTRY_CURRENCY;
-  // Converts a hand-entered value (e.g. rent) from its own currency into the shown one, at the month's rate.
-  const convert = (value: number, from: DisplayCurrency) => {
-    const rate = view?.rates[from];
-    return rate != null ? value * rate : null;
-  };
+  const fmt = (n: number) => formatMoney(n, currency);
+  const firstMonth = availableMonths.length ? availableMonths[availableMonths.length - 1] : undefined;
+
   // Worked out here from the parts shown on this page, so the totals always
   // match them, even for a month the server last calculated with an older
   // formula (its moneyLeft is the same sum: functions/dashboard.py).
   const totals = view && {
     income: view.filipaSalary + view.joaoSalary,
-    savedSoFar: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal,
+    saved: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal,
     moneyLeft: view.filipaSalary + view.joaoSalary - view.totalExpenses - view.fixedExpensesTotal - view.savingsGoalTarget,
   };
-  const otherCurrency = DISPLAY_CURRENCIES.find((c) => c !== currency);
 
+  const categoryById = (id: string) => categories.find((c) => c.id === id);
   const categoryLabel = (id: string) =>
-    id === UNCATEGORIZED_FIXED ? "Fixed expenses, no category yet" : (categories.find((c) => c.id === id)?.label ?? id);
+    id === UNCATEGORIZED_FIXED ? "Fixed, no category yet" : (categoryById(id)?.label ?? id);
 
-  const categoryRows = Object.entries(view?.totalsByCategory ?? {}).map(([id, value]) => ({
-    label: categoryLabel(id),
-    value,
-  }));
+  const fixedItems = settings?.fixedExpenses ?? [];
+  // Fixed expenses in an investments category are listed under Investments instead.
+  const fixedSpending = fixedItems.filter((item) => categoryById(item.category ?? "")?.special !== "savings");
+  const fixedNamesIn = (categoryId: string) =>
+    fixedSpending
+      .filter((item) => (item.category && categoryById(item.category) ? item.category : UNCATEGORIZED_FIXED) === categoryId)
+      .map((item) => item.label);
 
-  // One in an investments category is listed under Investments instead.
-  const fixedExpenseItems = (settings?.fixedExpenses ?? []).filter(
-    (item) => categories.find((c) => c.id === item.category)?.special !== "savings",
-  );
+  const byCategory = Object.entries(view?.totalsByCategory ?? {})
+    .filter(([, amount]) => amount > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const maxCategory = byCategory[0]?.[1] ?? 1;
+  const pendingCount = dashboard?.pendingCount ?? 0;
 
   return (
-    <div className="screen">
-      <h1>Dashboard</h1>
-      <div className="field">
-        <MonthPicker month={month} availableMonths={availableMonths} onChange={setMonth} />
-      </div>
+    <>
+      <PageHeader>
+        <MonthSwitcher firstMonth={firstMonth} />
+      </PageHeader>
 
-      {view && view.unconvertedCount > 0 && (
-        <div className="card" style={{ borderColor: "var(--status-warning)" }}>
-          {view.unconvertedCount} transaction{view.unconvertedCount === 1 ? " isn't" : "s aren't"} in the {currency} totals
-          yet: {view.unconvertedCount === 1 ? "its" : "their"} {currency} amount is still being looked up. This fills in
-          automatically.
-        </div>
-      )}
-
-      {dashboard && dashboard.needsReviewCount > 0 && (
-        <div className="card" style={{ borderColor: "var(--status-warning)" }}>
-          <Link to="/transactions">
-            {dashboard.needsReviewCount} transaction{dashboard.needsReviewCount === 1 ? "" : "s"} need{" "}
-            {dashboard.needsReviewCount === 1 ? "s" : ""} a category →
-          </Link>
-        </div>
-      )}
-
-      <IncomeCard
-        month={month}
-        salaryCurrency={salaryCurrency}
-        salaryView={viewFor(dashboard, salaryCurrency)}
-        view={view}
-        joaoSetting={settings?.joaoSalary ?? null}
-      />
-
-      {!dashboard && <p className="empty-state">No transactions imported for {month} yet.</p>}
-
-      {dashboard && !view && (
-        <p className="empty-state">
-          {currency} figures for {month} aren't calculated yet; they appear the next time this month changes.
-        </p>
-      )}
-
-      {view && totals && (
-        <>
-          <div className="stat-row">
-            <StatTile label="Income this month" value={totals.income} currency={currency} />
-            <StatTile label="Money left" value={totals.moneyLeft} hero currency={currency} />
+      <div className="space-y-10 px-5 pb-8">
+        {Boolean(dashboard?.needsReviewCount || view?.unconvertedCount || view?.missingRate) && (
+          <div className="space-y-2">
+            {dashboard && dashboard.needsReviewCount > 0 && (
+              <Link
+                to="/transactions"
+                className="flex items-center gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium transition-colors hover:bg-warning/15"
+              >
+                <AlertTriangleIcon className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                <span className="flex-1">
+                  {dashboard.needsReviewCount} transaction{dashboard.needsReviewCount === 1 ? " needs" : "s need"} a
+                  category
+                </span>
+                <ChevronRightIcon className="h-4 w-4 text-subtle" aria-hidden="true" />
+              </Link>
+            )}
+            {view && view.unconvertedCount > 0 && (
+              <Notice>
+                {view.unconvertedCount} transaction{view.unconvertedCount === 1 ? " isn't" : "s aren't"} in the{" "}
+                {currency} totals yet: the exchange rate is still being looked up. This fills in on its own.
+              </Notice>
+            )}
+            {view?.missingRate && (
+              <Notice tone="warning">
+                Some amounts you entered in the other currency aren't included right now: the exchange rate couldn't be
+                looked up.
+              </Notice>
+            )}
           </div>
-          {view.missingRate && otherCurrency && (
-            <p style={{ fontSize: 12, color: "var(--status-warning)", marginTop: -4 }}>
-              Some amounts you entered in {otherCurrency} aren't included right now: the exchange rate couldn't be looked
-              up.
-            </p>
-          )}
+        )}
 
-          <div className="card">
-            <h2>Savings goal</h2>
-            <SavingsMeter
-              saved={totals.savedSoFar}
+        {!dashboard && (
+          <p className="rounded-2xl bg-surface px-4 py-10 text-center text-sm text-muted">
+            No transactions imported for {formatMonth(month)} yet.
+          </p>
+        )}
+        {dashboard && !view && (
+          <p className="rounded-2xl bg-surface px-4 py-10 text-center text-sm text-muted">
+            {currency} figures for {formatMonth(month)} aren't calculated yet; they appear the next time this month
+            changes.
+          </p>
+        )}
+
+        {view && totals && (
+          <>
+            <div>
+              <MoneyLeftHero moneyLeft={totals.moneyLeft} goal={view.savingsGoalTarget} currency={currency} />
+              <IncomeAllocation
+                income={totals.income}
+                spent={view.totalExpenses}
+                fixed={view.fixedExpensesTotal}
+                goal={view.savingsGoalTarget}
+                saved={totals.saved}
+                currency={currency}
+              />
+            </div>
+
+            <SavingsGoalSection
+              saved={totals.saved}
               goal={view.savingsGoalTarget}
               monthOver={month < currentMonth()}
               currency={currency}
             />
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-              Saved = income − spending − fixed expenses.
-            </p>
-          </div>
 
-          <div className="card">
-            <h2>Money spent</h2>
-            <div className="stat-value" style={{ fontSize: 28, marginBottom: 8 }}>
-              {formatCurrency(view.totalExpenses + view.fixedExpensesTotal, currency)}
-            </div>
-            <div className="tx-row">
-              <span>Spending</span>
-              <span className="tx-amount">{formatCurrency(view.totalExpenses, currency)}</span>
-            </div>
-            <div className="tx-row">
-              <span>Fixed expenses</span>
-              <span className="tx-amount">{formatCurrency(view.fixedExpensesTotal, currency)}</span>
-            </div>
-          </div>
+            <section aria-labelledby="income-heading">
+              <SectionHeader
+                id="income-heading"
+                title="Income"
+                aside={<span className="text-sm font-medium tabular-nums text-muted">{fmt(totals.income)}</span>}
+              />
+              <RowGroup className="mt-3">
+                <ValueRow
+                  leading={<IconTile letter="F" color="#F472B6" round />}
+                  label="Filipa's salary"
+                  description={FILIPA_SOURCE[view.filipaSalarySource]}
+                  value={view.filipaSalarySource === "none" ? "—" : fmt(view.filipaSalary)}
+                  to="/settings"
+                />
+                <ValueRow
+                  leading={<IconTile letter="J" color="#60A5FA" round />}
+                  label="João's salary"
+                  description={settings?.joaoSalary ? "Fixed amount" : "Not set"}
+                  value={fmt(view.joaoSalary)}
+                  to="/settings"
+                />
+              </RowGroup>
+            </section>
 
-          <div className="card">
-            <h2>Expenses by category</h2>
-            <p style={{ marginTop: 0, fontSize: 12, color: "var(--text-muted)" }}>
-              Categorized transactions plus your fixed monthly expenses.
-            </p>
-            <CategoryBarChart rows={categoryRows} currency={currency} />
-          </div>
+            <section aria-labelledby="spent-heading">
+              <SectionHeader
+                id="spent-heading"
+                title="Money spent"
+                aside={
+                  <span className="text-sm font-medium tabular-nums text-muted">
+                    {fmt(view.totalExpenses + view.fixedExpensesTotal)}
+                  </span>
+                }
+              />
+              <RowGroup className="mt-3">
+                <ValueRow
+                  leading={<IconTile icon={CreditCardIcon} color="#FF8A65" />}
+                  label="Spending"
+                  description={
+                    pendingCount > 0 ? `Incl. ${pendingCount} pending` : "Card & bank payments"
+                  }
+                  value={fmt(view.totalExpenses)}
+                  to="/transactions"
+                />
+                <ValueRow
+                  leading={<IconTile icon={CalendarClockIcon} color="#A1A1AA" />}
+                  label="Fixed bills"
+                  description={fixedSpending.map((f) => f.label).join(", ") || "None yet"}
+                  value={fmt(view.fixedExpensesTotal)}
+                  to="/settings"
+                />
+              </RowGroup>
+            </section>
 
-          {(view.investments?.length ?? 0) > 0 && (
-            <div className="card">
-              <h2>Investments</h2>
-              <p style={{ marginTop: 0, fontSize: 12, color: "var(--text-muted)" }}>
-                Money moved to investments this month. Kept apart: not spending, not in money left, not in the savings goal.
-              </p>
-              <div className="stat-value" style={{ fontSize: 28, marginBottom: 8 }}>
-                {formatCurrency(view.investmentsTotal ?? 0, currency)}
-              </div>
-              {view.investments!.map((item, i) => (
-                <div key={`${item.date}-${i}`} className="tx-row">
-                  <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
-                    <div className="tx-merchant">{item.merchant}</div>
-                    <div className="tx-date">
-                      {item.fixed ? "Every month" : item.date} · {categoryLabel(item.category)}
-                    </div>
-                  </div>
-                  <div className={`tx-amount ${item.amount >= 0 ? "positive" : "negative"}`}>
-                    {item.amount >= 0 ? "" : "taken out "}
-                    {formatCurrency(Math.abs(item.amount), currency)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            <section aria-labelledby="categories-heading">
+              <SectionHeader
+                id="categories-heading"
+                title="Where it went"
+                aside={
+                  <Link to="/transactions" className="text-sm font-medium text-accent hover:underline">
+                    All transactions
+                  </Link>
+                }
+              />
+              {byCategory.length === 0 ? (
+                <p className="mt-3 rounded-2xl bg-surface px-4 py-6 text-center text-sm text-muted">
+                  No spending recorded this month yet.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-line rounded-2xl bg-surface">
+                  {byCategory.map(([id, amount]) => {
+                    const fixedNames = fixedNamesIn(id);
+                    const look = categoryLook(categoryById(id));
+                    return (
+                      <li key={id} className="flex items-center gap-3 px-4 py-3">
+                        <CategoryIcon category={categoryById(id)} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="truncate text-[15px] font-medium">{categoryLabel(id)}</span>
+                            <span className="shrink-0 text-[15px] font-medium tabular-nums">{fmt(amount)}</span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-3">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-raised">
+                              <div
+                                className="h-full rounded-full"
+                                style={{ width: `${(amount / maxCategory) * 100}%`, backgroundColor: look.color }}
+                              />
+                            </div>
+                            {fixedNames.length > 0 && (
+                              <span className="max-w-[45%] shrink-0 truncate text-right text-xs text-subtle">
+                                incl. {fixedNames.join(", ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
 
-          {fixedExpenseItems.length > 0 && (
-            <div className="card">
-              <h2>Fixed monthly expenses</h2>
-              {fixedExpenseItems.map((item) => {
-                const from = item.currency ?? ENTRY_CURRENCY;
-                const shown = convert(item.amount, from);
-                return (
-                  <div key={item.id} className="tx-row">
-                    <div className="tx-main" style={{ flex: 1, minWidth: 0 }}>
-                      <div className="tx-merchant">{item.label}</div>
-                      <div className="tx-date">
-                        {item.category ? categoryLabel(item.category) : "Category: AI is picking one…"}
-                      </div>
-                    </div>
-                    <span className="tx-amount negative">
-                      {shown != null ? formatCurrency(-shown, currency) : formatCurrency(-item.amount, from)}
-                    </span>
-                  </div>
-                );
-              })}
-              <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>Edit these in Settings.</p>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+            <section aria-labelledby="investments-heading">
+              <SectionHeader
+                id="investments-heading"
+                title="Investments"
+                aside={
+                  <span className="text-sm font-medium tabular-nums text-violet">{fmt(view.investmentsTotal ?? 0)}</span>
+                }
+                note="Kept apart: not counted in spending, money left or the goal."
+              />
+              {(view.investments?.length ?? 0) === 0 ? (
+                <p className="mt-3 rounded-2xl bg-surface px-4 py-6 text-center text-sm text-muted">
+                  Nothing moved to investments this month.
+                </p>
+              ) : (
+                <ul className="mt-3 divide-y divide-line rounded-2xl bg-surface">
+                  {view.investments!.map((item, i) => (
+                    <li key={`${item.date}-${i}`} className="flex items-center gap-3 px-4 py-3">
+                      <CategoryIcon category={categoryById(item.category)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-medium">{item.merchant}</span>
+                        <span className="block truncate text-[13px] text-muted">
+                          {item.fixed || !item.date ? "Every month" : formatShortDate(item.date)} · {categoryLabel(item.category)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[15px] font-semibold tabular-nums text-violet">
+                        {item.amount >= 0 ? fmt(item.amount) : `taken out ${fmt(-item.amount)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </>
   );
 }

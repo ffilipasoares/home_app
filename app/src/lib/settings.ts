@@ -53,7 +53,7 @@ export async function saveDisplayCurrency(uid: string, displayCurrency: DisplayC
   await setDoc(userRef(uid), { displayCurrency }, { merge: true });
 }
 
-export async function saveUserSettings(uid: string, settings: UserSettings): Promise<void> {
+export async function saveUserSettings(uid: string, settings: Partial<UserSettings>): Promise<void> {
   await setDoc(userRef(uid), settings, { merge: true });
 }
 

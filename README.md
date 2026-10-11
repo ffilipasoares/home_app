@@ -36,8 +36,8 @@ Firebase project and installed on your iPhone.**
 ## Repository layout
 
 ```
-app/         React + Vite PWA (TypeScript) — dashboard (incl. per-month
-             income), transactions, CSV import, settings
+app/         React + Vite PWA (TypeScript, Tailwind) — dashboard,
+             transactions, CSV import, settings
 functions/   Cloud Functions (Python): an ADK categorization agent
              auto-categorizes each new transaction (exact-match cache,
              then the agent), learns from manual corrections, and

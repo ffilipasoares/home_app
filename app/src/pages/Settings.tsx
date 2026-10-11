@@ -1,260 +1,202 @@
 import { useEffect, useState } from "react";
+import { CalendarClockIcon, LogOutIcon, PiggyBankIcon, TagsIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { subscribeDashboard } from "../lib/dashboard";
-import { formatCurrency } from "../lib/format";
+import { formatCurrency, formatMoney } from "../lib/format";
 import { useSelectedMonth } from "../lib/selectedMonth";
-import {
-  resetCategoriesToDefaults,
-  saveDisplayCurrency,
-  saveCategories,
-  saveUserSettings,
-  subscribeCategories,
-  subscribeUserSettings,
-} from "../lib/settings";
-import { AmountInput } from "../components/AmountInput";
-import { FixedItemsEditor } from "../components/FixedItemsEditor";
-import { BankConnectionCard } from "../components/BankConnectionCard";
-import { CurrencySelect } from "../components/CurrencySelect";
+import { saveDisplayCurrency, subscribeCategories, subscribeUserSettings } from "../lib/settings";
+import { PageHeader } from "../components/ui/PageHeader";
+import { IconTile } from "../components/ui/IconTile";
+import { RowGroup, SectionHeader, ValueRow } from "../components/ui/ValueRow";
+import { BottomSheet, SheetFooter } from "../components/ui/BottomSheet";
+import { Button } from "../components/ui/Button";
+import { SegmentedControl } from "../components/ui/SegmentedControl";
+import { CURRENCY_OPTIONS } from "../components/ui/styles";
+import { categoryLook } from "../lib/categoryLook";
+import { BankConnection } from "../components/settings/BankConnection";
+import { FilipaSalarySheet, JoaoSalarySheet } from "../components/settings/SalarySheets";
+import { SavingsGoalSheet } from "../components/settings/SavingsGoalSheet";
+import { FixedExpensesSheet } from "../components/settings/FixedExpensesSheet";
+import { CategoriesSheet } from "../components/settings/CategoriesSheet";
 import { ENTRY_CURRENCY } from "../types";
-import type { CategoryDef, DashboardDoc, SavingsGoal, UserSettings } from "../types";
+import type { CategoryDef, DashboardDoc, DisplayCurrency, UserSettings } from "../types";
+
+type OpenSheet = "filipa" | "joao" | "goal" | "fixed" | "categories" | "signout" | null;
 
 export function Settings() {
   const { user, signOut } = useAuth();
   const uid = user!.uid;
-
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [categories, setCategories] = useState<CategoryDef[]>([]);
-  // Which section's Save was just pressed, to show "Saved." next to that button only.
-  const [savedSection, setSavedSection] = useState<string | null>(null);
+  const [open, setOpen] = useState<OpenSheet>(null);
+  const close = () => setOpen(null);
 
   useEffect(() => subscribeUserSettings(uid, setSettings), [uid]);
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
 
-  // The month picked on the Dashboard, for "detected in <month>".
+  // The month picked on the Dashboard, for "detected in <month>" and the fixed total.
   const { month } = useSelectedMonth();
   const [dashboard, setDashboard] = useState<DashboardDoc | null>(null);
   useEffect(() => subscribeDashboard(uid, month, setDashboard), [uid, month]);
 
-  async function handleSave(section: string) {
-    if (!settings) return;
-    await saveUserSettings(uid, settings);
-    setSavedSection(section);
-    setTimeout(() => setSavedSection(null), 2000);
+  if (!settings) {
+    return <PageHeader title="Settings" />;
   }
 
-  const saveButton = (section: string) => (
-    <div style={{ marginTop: 16 }}>
-      <button type="button" className="button" onClick={() => handleSave(section)}>
-        Save
-      </button>
-      {savedSection === section && <span style={{ marginLeft: 12, color: "var(--status-good)" }}>Saved.</span>}
-    </div>
-  );
-
-  function updateGoal(patch: Partial<SavingsGoal>) {
-    if (!settings) return;
-    setSettings({ ...settings, savingsGoal: { ...settings.savingsGoal, ...patch } });
-  }
-
-  function updateCategory(id: string, patch: Partial<CategoryDef>) {
-    setCategories((cats) => cats.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  }
-
-  function addCategory() {
-    const label = prompt("New category name?");
-    if (!label) return;
-    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-    if (!id || categories.some((c) => c.id === id)) return;
-    setCategories((cats) => [...cats, { id, label }]);
-  }
-
-  function removeCategory(id: string) {
-    setCategories((cats) => cats.filter((c) => c.id !== id));
-  }
-
-  async function handleReset() {
-    if (!confirm("Replace your current category list with the defaults (Salary, Food, Transport, Needs, Invest, Entertainment, Others)? This doesn't touch already-categorized transactions, but any category not in that list will stop matching them.")) return;
-    await resetCategoriesToDefaults(uid);
-  }
-
-  const salaryCurrency = settings?.salaryCurrency ?? ENTRY_CURRENCY;
+  const currency: DisplayCurrency = settings.displayCurrency ?? ENTRY_CURRENCY;
+  const salaryCurrency: DisplayCurrency = settings.salaryCurrency ?? ENTRY_CURRENCY;
   const detectedRaw = dashboard?.views?.[salaryCurrency]?.autoDetectedFilipaSalary ?? 0;
   const detected = detectedRaw > 0 ? detectedRaw : null;
-
-  if (!settings) {
-    return (
-      <div className="screen">
-        <p className="empty-state">Loading…</p>
-      </div>
-    );
-  }
+  const fixedTotal = dashboard?.views?.[currency]?.fixedExpensesTotal;
+  const goal = settings.savingsGoal;
 
   return (
-    <div className="screen">
-      <h1>Settings</h1>
+    <>
+      <PageHeader title="Settings" />
 
-      <BankConnectionCard uid={uid} />
+      <div className="space-y-10 px-5 pb-8">
+        <BankConnection uid={uid} />
 
-      <div className="card">
-        <h2>App currency</h2>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>Show everything in</label>
-          <CurrencySelect
-            label="App currency"
-            value={settings.displayCurrency ?? ENTRY_CURRENCY}
-            onChange={(displayCurrency) => {
-              setSettings({ ...settings, displayCurrency });
-              saveDisplayCurrency(uid, displayCurrency);
-            }}
+        <section aria-labelledby="currency-heading">
+          <SectionHeader
+            id="currency-heading"
+            title="App currency"
+            note="Everything is shown in it. Other-currency transactions convert at their own date's rate."
           />
-          <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-            The Dashboard and Transactions show every amount in this currency. Transactions in the other currency are
-            converted at the rate for their own date; amounts you enter (salaries, savings goal, fixed expenses) at the
-            month's rate. Saved straight away.
-          </p>
-        </div>
-      </div>
+          <div className="mt-3">
+            <SegmentedControl<DisplayCurrency>
+              label="App currency"
+              value={currency}
+              onChange={(displayCurrency) => {
+                setSettings({ ...settings, displayCurrency });
+                saveDisplayCurrency(uid, displayCurrency);
+              }}
+              options={CURRENCY_OPTIONS}
+            />
+          </div>
+        </section>
 
-      <div className="card">
-        <h2>Salaries</h2>
-        <div className="field">
-          <label>Filipa's salary</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <AmountInput
+        <section aria-labelledby="salaries-heading">
+          <SectionHeader id="salaries-heading" title="Salaries" note="Used for every month's income on the Dashboard." />
+          <RowGroup className="mt-3">
+            <ValueRow
+              leading={<IconTile letter="F" color="#F472B6" round />}
               label="Filipa's salary"
-              value={settings.filipaSalaryAmount ?? null}
-              placeholder="Detected"
-              onChange={(filipaSalaryAmount) => setSettings({ ...settings, filipaSalaryAmount })}
-              style={{ flex: 1, minWidth: 0 }}
+              description={
+                settings.filipaSalaryAmount != null ? "Fixed amount" : detected === null ? "Detected · none yet" : "Detected"
+              }
+              value={
+                settings.filipaSalaryAmount != null
+                  ? formatCurrency(settings.filipaSalaryAmount, salaryCurrency)
+                  : detected !== null
+                    ? formatCurrency(detected, salaryCurrency)
+                    : "—"
+              }
+              onClick={() => setOpen("filipa")}
             />
-            <CurrencySelect
-              label="Filipa's salary currency"
-              value={salaryCurrency}
-              onChange={(salaryCurrency) => setSettings({ ...settings, salaryCurrency })}
-            />
-          </div>
-          <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-            {detected !== null ? (
-              <>
-                Detected in {month}: {formatCurrency(detected, salaryCurrency)}.{" "}
-              </>
-            ) : (
-              <>Nothing detected in {month}. </>
-            )}
-            Leave the box empty to use the salary detected from your transactions each month, or type the amount to
-            use it every month.
-          </p>
-        </div>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label>João's salary</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <AmountInput
+            <ValueRow
+              leading={<IconTile letter="J" color="#60A5FA" round />}
               label="João's salary"
-              value={settings.joaoSalary?.amount ?? null}
-              placeholder="Not set"
-              onChange={(amount) =>
-                setSettings({
-                  ...settings,
-                  joaoSalary:
-                    amount === null ? null : { amount, currency: settings.joaoSalary?.currency ?? ENTRY_CURRENCY },
-                })
-              }
-              style={{ flex: 1, minWidth: 0 }}
+              description={settings.joaoSalary ? "Fixed amount" : "Not set"}
+              value={settings.joaoSalary ? formatCurrency(settings.joaoSalary.amount, settings.joaoSalary.currency) : "—"}
+              onClick={() => setOpen("joao")}
             />
-            <CurrencySelect
-              label="João's salary currency"
-              value={settings.joaoSalary?.currency ?? ENTRY_CURRENCY}
-              onChange={(currency) =>
-                setSettings({ ...settings, joaoSalary: { amount: settings.joaoSalary?.amount ?? 0, currency } })
+          </RowGroup>
+        </section>
+
+        <section aria-labelledby="budget-heading">
+          <SectionHeader id="budget-heading" title="Budget" />
+          <RowGroup className="mt-3">
+            <ValueRow
+              leading={<IconTile icon={PiggyBankIcon} color="#A78BFA" />}
+              label="Savings goal"
+              description={goal.type === "fixed" ? "Per month" : "Of monthly income"}
+              value={
+                goal.type === "fixed"
+                  ? goal.value > 0
+                    ? formatCurrency(goal.value, goal.currency ?? ENTRY_CURRENCY)
+                    : "—"
+                  : `${goal.value.toLocaleString()}%`
               }
+              onClick={() => setOpen("goal")}
             />
+            <ValueRow
+              leading={<IconTile icon={CalendarClockIcon} color="#FACC15" />}
+              label="Fixed expenses"
+              description={settings.fixedExpenses.map((f) => f.label).join(", ") || "None yet"}
+              value={fixedTotal !== undefined && settings.fixedExpenses.length > 0 ? formatMoney(fixedTotal, currency) : undefined}
+              onClick={() => setOpen("fixed")}
+            />
+          </RowGroup>
+        </section>
+
+        <section aria-labelledby="categories-heading">
+          <SectionHeader id="categories-heading" title="Categories" />
+          <RowGroup className="mt-3">
+            <ValueRow
+              leading={<IconTile icon={TagsIcon} color="#2DD4BF" />}
+              label={`${categories.length} categories`}
+              description={categories.map((c) => c.label).join(", ")}
+              onClick={() => setOpen("categories")}
+            />
+          </RowGroup>
+          <div className="mt-3 flex flex-wrap gap-1.5" aria-hidden="true">
+            {categories.map((c) => {
+              const { color } = categoryLook(c);
+              return (
+                <span
+                  key={c.id}
+                  className="rounded-full px-2.5 py-1 text-[12px] font-medium"
+                  style={{ backgroundColor: `${color}1F`, color }}
+                >
+                  {c.label}
+                </span>
+              );
+            })}
           </div>
-          <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-            The amount and currency he's actually paid, used for every month.
-          </p>
+        </section>
+
+        <div>
+          <Button variant="secondary" className="w-full !text-negative" onClick={() => setOpen("signout")}>
+            <LogOutIcon className="h-4 w-4" aria-hidden="true" />
+            Sign out
+          </Button>
+          <p className="mt-2 text-center text-[12px] text-subtle">Signed in as {user?.email}</p>
         </div>
-        {saveButton("salaries")}
       </div>
 
-      <div className="card">
-        <h2>Savings goal</h2>
-        <div className="field">
-          <label>Savings goal type</label>
-          <select value={settings.savingsGoal.type} onChange={(e) => updateGoal({ type: e.target.value as SavingsGoal["type"] })}>
-            <option value="fixed">Fixed amount per month</option>
-            <option value="percent">Percent of income</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>{settings.savingsGoal.type === "fixed" ? "Amount" : "Percent (%)"}</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <AmountInput
-              label={settings.savingsGoal.type === "fixed" ? "Savings goal amount" : "Savings goal percent"}
-              value={settings.savingsGoal.value}
-              onChange={(value) => updateGoal({ value: value ?? 0 })}
-              style={{ flex: 1, minWidth: 0 }}
-            />
-            {settings.savingsGoal.type === "fixed" && (
-              <CurrencySelect
-                label="Savings goal currency"
-                value={settings.savingsGoal.currency ?? ENTRY_CURRENCY}
-                onChange={(currency) => updateGoal({ currency })}
-              />
-            )}
-          </div>
-        </div>
-
-        <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 0 }}>
-          How much you want to save each month. It's set aside first: money left on the Dashboard is income − spending −
-          fixed expenses − this goal. Investments are shown separately and don't count here.
+      <FilipaSalarySheet open={open === "filipa"} onClose={close} uid={uid} settings={settings} detected={detected} month={month} />
+      <JoaoSalarySheet open={open === "joao"} onClose={close} uid={uid} settings={settings} />
+      <SavingsGoalSheet open={open === "goal"} onClose={close} uid={uid} settings={settings} />
+      <FixedExpensesSheet
+        open={open === "fixed"}
+        onClose={close}
+        uid={uid}
+        items={settings.fixedExpenses}
+        categories={categories}
+        defaultCurrency={currency}
+      />
+      <CategoriesSheet open={open === "categories"} onClose={close} uid={uid} categories={categories} />
+      <BottomSheet open={open === "signout"} onClose={close} title="Sign out?">
+        <p className="px-5 pb-6 pt-1 text-sm text-muted">
+          Your data stays safe and the bank connection keeps syncing. You'll need to sign in again to see it.
         </p>
-        {saveButton("savings")}
-      </div>
-
-      <div className="card">
-        <FixedItemsEditor
-          title="Fixed monthly expenses"
-          hint="Costs paid every month from another account, e.g. rent. They leave your money just the same, so they're subtracted from money left on the Dashboard, every month, and count in their category. Leave the category to the AI or pick one; an investments category puts it in Investments instead. If one changes, edit it here."
-          items={settings.fixedExpenses}
-          categories={categories}
-          onChange={(fixedExpenses) => setSettings({ ...settings, fixedExpenses })}
-        />
-        {saveButton("fixed")}
-      </div>
-
-      <div className="card">
-        <h2>Categories</h2>
-        {categories.map((c) => (
-          <div key={c.id} className="tx-row">
-            <input
-              type="text"
-              value={c.label}
-              onChange={(e) => updateCategory(c.id, { label: e.target.value })}
-              style={{ flex: 1 }}
-            />
-            <button type="button" className="button secondary" style={{ padding: "6px 10px" }} onClick={() => removeCategory(c.id)}>
-              ✕
-            </button>
-          </div>
-        ))}
-        <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-          <button type="button" className="button secondary" onClick={addCategory}>
-            Add category
-          </button>
-          <button type="button" className="button" onClick={() => saveCategories(uid, categories)}>
-            Save categories
-          </button>
-          <button type="button" className="button secondary" onClick={handleReset}>
-            Reset to defaults
-          </button>
-        </div>
-      </div>
-
-      <div className="card">
-        <button type="button" className="button secondary" onClick={() => signOut()}>
-          Sign out
-        </button>
-      </div>
-    </div>
+        <SheetFooter>
+          <Button variant="secondary" fullWidth onClick={close}>
+            Cancel
+          </Button>
+          <Button
+            fullWidth
+            className="!bg-negative !text-canvas"
+            onClick={() => {
+              close();
+              signOut();
+            }}
+          >
+            Sign out
+          </Button>
+        </SheetFooter>
+      </BottomSheet>
+    </>
   );
 }

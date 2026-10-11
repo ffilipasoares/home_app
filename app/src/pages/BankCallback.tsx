@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AlertTriangleIcon, CheckCircle2Icon, Loader2Icon } from "lucide-react";
 import { finishPendingBankCallback, type FinishResult } from "../lib/bank";
+import { PageHeader } from "../components/ui/PageHeader";
 
 type State = { kind: "working" } | { kind: "done"; result: FinishResult } | { kind: "error"; message: string } | { kind: "idle" };
+
+const LINK =
+  "mt-6 inline-flex h-12 w-full items-center justify-center rounded-xl bg-accent text-[15px] font-semibold text-canvas transition-colors hover:bg-accent-hover";
 
 /** Where Revolut sends you back to after approving access (see captureBankCallback). */
 export function BankCallback() {
@@ -18,42 +23,52 @@ export function BankCallback() {
   }, [pending]);
 
   return (
-    <div className="screen">
-      <h1>Revolut</h1>
-      <div className="card">
-        {state.kind === "working" && (
-          <>
-            <p style={{ marginTop: 0 }}>Connecting and importing your transaction history…</p>
-            <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 0 }}>
-              This can take a minute the first time. Keep this page open.
-            </p>
-          </>
-        )}
-        {state.kind === "done" && (
-          <>
-            <p style={{ marginTop: 0 }}>
-              Connected {state.result.accounts} account{state.result.accounts === 1 ? "" : "s"} and imported{" "}
-              {state.result.imported} transaction{state.result.imported === 1 ? "" : "s"}.
-            </p>
-            <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-              They're being categorized now; the dashboard fills in over the next few minutes.
-            </p>
-            <Link to="/">Go to the dashboard →</Link>
-          </>
-        )}
-        {state.kind === "error" && (
-          <>
-            <p style={{ marginTop: 0, color: "var(--status-critical)" }}>Couldn't connect: {state.message}</p>
-            <Link to="/settings">Back to Settings</Link>
-          </>
-        )}
-        {state.kind === "idle" && (
-          <>
-            <p style={{ marginTop: 0 }}>Nothing to finish here.</p>
-            <Link to="/settings">Go to Settings</Link>
-          </>
-        )}
+    <>
+      <PageHeader title="Revolut" />
+      <div className="px-5 pb-8">
+        <div className="flex flex-col items-center rounded-2xl bg-surface px-6 py-10 text-center">
+          {state.kind === "working" && (
+            <>
+              <Loader2Icon className="h-9 w-9 animate-spin text-muted" aria-hidden="true" />
+              <p className="mt-4 text-lg font-semibold">Connecting and importing your history…</p>
+              <p className="mt-1 text-sm text-muted">This can take a minute the first time. Keep this page open.</p>
+            </>
+          )}
+          {state.kind === "done" && (
+            <>
+              <CheckCircle2Icon className="h-10 w-10 text-positive" aria-hidden="true" />
+              <p className="mt-4 text-lg font-semibold">
+                Connected {state.result.accounts} account{state.result.accounts === 1 ? "" : "s"}
+              </p>
+              <p className="mt-1 text-sm text-muted">
+                Imported {state.result.imported} transaction{state.result.imported === 1 ? "" : "s"}. They're being
+                categorized now; the Dashboard fills in over the next few minutes.
+              </p>
+              <Link to="/" className={LINK}>
+                Go to the Dashboard
+              </Link>
+            </>
+          )}
+          {state.kind === "error" && (
+            <>
+              <AlertTriangleIcon className="h-10 w-10 text-negative" aria-hidden="true" />
+              <p className="mt-4 text-lg font-semibold">Couldn't connect</p>
+              <p className="mt-1 text-sm text-muted">{state.message}</p>
+              <Link to="/settings" className={LINK}>
+                Back to Settings
+              </Link>
+            </>
+          )}
+          {state.kind === "idle" && (
+            <>
+              <p className="text-lg font-semibold">Nothing to finish here</p>
+              <Link to="/settings" className={LINK}>
+                Go to Settings
+              </Link>
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

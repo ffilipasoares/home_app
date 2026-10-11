@@ -15,8 +15,8 @@ export default defineConfig({
         description: "Bank transaction categorization and monthly budget dashboard",
         start_url: "/",
         display: "standalone",
-        background_color: "#f9f9f7",
-        theme_color: "#256abf",
+        background_color: "#0B0B0C",
+        theme_color: "#0B0B0C",
         icons: [
           { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
