@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { PlusIcon, SearchIcon, SearchXIcon, SlidersHorizontalIcon, XIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { subscribeAllTransactions, subscribeMonthTransactions } from "../lib/transactions";
@@ -49,7 +50,16 @@ export function Transactions() {
   const [categories, setCategories] = useState<CategoryDef[]>([]);
   const [accounts, setAccounts] = useState<AccountLink[]>([]);
   const [currency, setCurrency] = useState<DisplayCurrency>(ENTRY_CURRENCY);
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // Opened from a Dashboard category (?category=id): start filtered on it,
+  // then drop the parameter so the filters behave normally from here on.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filters, setFilters] = useState<Filters>(() => {
+    const category = searchParams.get("category");
+    return category ? { ...NO_FILTERS, category } : NO_FILTERS;
+  });
+  useEffect(() => {
+    if (searchParams.has("category")) setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);

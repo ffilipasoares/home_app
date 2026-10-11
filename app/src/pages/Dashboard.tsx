@@ -229,12 +229,18 @@ export function Dashboard() {
                   No spending recorded this month yet.
                 </p>
               ) : (
-                <ul className="mt-3 divide-y divide-line rounded-2xl bg-surface">
+                <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl bg-surface">
                   {byCategory.map(([id, amount]) => {
                     const fixedNames = fixedNamesIn(id);
                     const look = categoryLook(categoryById(id));
                     return (
-                      <li key={id} className="flex items-center gap-3 px-4 py-3">
+                      <li key={id}>
+                        <Link
+                          // A category's transactions, in this month; fixed expenses without a category live in Settings.
+                          to={id === UNCATEGORIZED_FIXED ? "/settings" : `/transactions?category=${encodeURIComponent(id)}`}
+                          aria-label={`${categoryLabel(id)}, ${fmt(amount)}: see its transactions`}
+                          className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+                        >
                         <CategoryIcon category={categoryById(id)} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-3">
@@ -255,6 +261,8 @@ export function Dashboard() {
                             )}
                           </div>
                         </div>
+                        <ChevronRightIcon className="h-4 w-4 shrink-0 text-subtle" aria-hidden="true" />
+                        </Link>
                       </li>
                     );
                   })}
