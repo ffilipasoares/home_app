@@ -147,9 +147,8 @@ home screen like an installed app.
    expenses", and check the category list matches how you actually want to
    track spending — "Reset to defaults" gets you back to Salary / Food /
    Transport / Needs / Invest / Entertainment / Others if you've drifted.
-3. **Import** → upload a CSV export from your bank → confirm the column
-   mapping (it guesses date/description/amount from common header names,
-   English and Portuguese) → Import. Each row is auto-categorized on
+3. **Transactions arrive from the Revolut sync** (section 10), or add one by
+   hand with **+** on Transactions. Each is auto-categorized on
    arrival: a known merchant is instant and free (the learned-rules cache),
    an unfamiliar one goes to the categorization agent (Gemini 3.5
    Flash-Lite), whose answer is applied automatically; an unsure one is

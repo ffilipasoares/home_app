@@ -11,9 +11,9 @@ for the full design and phased build plan.
 ## Status: Phase 1 complete; Phase 2 (bank sync) in progress — step 3 of 4 built
 
 Data model, security rules, dashboard recomputation, and the installable
-PWA (auth, dashboard, transactions, CSV import, settings) are built. Import
-still means uploading a CSV export by hand, but each row is now categorized
-automatically on arrival by a real ADK agent (`google-adk`, Python — `functions/categorize.py`)
+PWA (auth, dashboard, transactions, analysis, settings) are built.
+Transactions arrive from the Revolut sync (or are added by hand), and each
+is categorized automatically on arrival by a real ADK agent (`google-adk`, Python — `functions/categorize.py`)
 — an exact-match cache for known merchants, and for a new one, an agent
 that can consult how similar merchants were categorized before rather than
 guessing blind (Gemini 3.5 Flash-Lite). Every answer is applied
@@ -37,7 +37,7 @@ Firebase project and installed on your iPhone.**
 
 ```
 app/         React + Vite PWA (TypeScript, Tailwind) — dashboard,
-             transactions, analysis charts, settings (incl. CSV import)
+             transactions, analysis charts, settings
 functions/   Cloud Functions (Python): an ADK categorization agent
              auto-categorizes each new transaction (exact-match cache,
              then the agent), learns from manual corrections, and

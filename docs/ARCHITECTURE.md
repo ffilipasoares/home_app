@@ -214,7 +214,8 @@ distributing a native app:
   goal vs saved, and per-category bars — plain divs, no chart library.
   Categories are free text, so their icon and colour are picked from words
   in the name (`app/src/lib/categoryLook.ts`).
-- Analysis tab (replaced Import, which moved under Settings): for the
+- Analysis tab (replaced Import; the CSV import was removed once the
+  Revolut sync covered everything, decided by the user): for the
   selected month, a donut of spending by category (at most six slices,
   the rest folded into "Other"), the estimated month as a 100% bar of
   income (the Dashboard's projection), spending pace day by day against
