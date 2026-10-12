@@ -51,6 +51,8 @@ export type UserSettings = {
   salaryCurrency?: DisplayCurrency;
   /** Filipa's salary typed in Settings (in salaryCurrency), used for every month. Unset/null: detected each month. */
   filipaSalaryAmount?: number | null;
+  /** Today's "Sync now" count, written by the server (the enforced count is server-only). `date` is a Lisbon day. */
+  manualSyncs?: { date: string; count: number; limit: number };
   /** João's salary as he's actually paid it, the same every month. Unset: the older per-month Dashboard entry is used. */
   joaoSalary?: { amount: number; currency: DisplayCurrency } | null;
 };

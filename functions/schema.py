@@ -53,6 +53,9 @@ class UserSettings(TypedDict, total=False):
     # salaryCurrency) is used instead, as before.
     joaoSalary: "MoneyAmount | None"
     displayCurrency: str  # which currency the Dashboard shows
+    # Copy of today's "Sync now" count (main.py, _use_manual_sync), for the
+    # app to show; the count that's enforced is in bankSecrets/{uid}.
+    manualSyncs: dict
 
 
 class MonthlyIncome(TypedDict):

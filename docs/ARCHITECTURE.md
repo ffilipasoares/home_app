@@ -602,7 +602,10 @@ Realistic total: **under $1–2/month**, likely $0 most months.
         longer lists (cancelled, or settled under a new reference). This
         replaced the original "settled only" rule at the user's request.
       - The sync runs twice a day, 13:00 and 23:00 Europe/Lisbon (open
-        banking allows up to 4 unattended reads a day), plus Sync now.
+        banking allows up to 4 unattended reads a day), plus Sync now,
+        capped at 2 a day per Lisbon day (decided by the user) so the four
+        aren't exceeded: counted in bankSecrets/{uid} (server-only) by
+        main.py's _use_manual_sync, with a copy in users/{uid} for the app.
       - Nothing booked before 1 September 2026 is imported (changed from
         "as much history as Revolut allows" to keep the first import
         small; `HISTORY_START` in `functions/bank_sync.py`).

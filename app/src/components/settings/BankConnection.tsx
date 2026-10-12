@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDownIcon, RefreshCwIcon } from "lucide-react";
 import { Button } from "../ui/Button";
 import { SectionHeader } from "../ui/ValueRow";
-import { startBankConnect, subscribeBankAccounts, syncBankNow } from "../../lib/bank";
+import { MANUAL_SYNCS_PER_DAY, lisbonToday, startBankConnect, subscribeBankAccounts, syncBankNow } from "../../lib/bank";
+import { subscribeUserSettings } from "../../lib/settings";
 import { formatShortDate, formatSyncTime } from "../../lib/month";
-import type { AccountLink } from "../../types";
+import type { AccountLink, UserSettings } from "../../types";
 
 function statusOf(account: AccountLink, syncing: boolean): { dot: string; text: string; tone?: string } {
   if (account.status === "reconnect-needed") return { dot: "bg-warning", text: "Reconnect needed", tone: "text-warning" };
@@ -24,6 +25,10 @@ export function BankConnection({ uid }: { uid: string }) {
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => subscribeBankAccounts(uid, setAccounts), [uid]);
+  const [manualSyncs, setManualSyncs] = useState<UserSettings["manualSyncs"]>();
+  useEffect(() => subscribeUserSettings(uid, (s) => setManualSyncs(s.manualSyncs)), [uid]);
+  const limit = manualSyncs?.limit ?? MANUAL_SYNCS_PER_DAY;
+  const syncsLeft = manualSyncs?.date === lisbonToday() ? Math.max(0, limit - manualSyncs.count) : limit;
 
   const linked = accounts
     .filter((a) => a.provider === "enablebanking")
@@ -45,7 +50,7 @@ export function BankConnection({ uid }: { uid: string }) {
     setBusy("sync");
     setNote(null);
     try {
-      const imported = await syncBankNow();
+      const { imported } = await syncBankNow();
       setNote({
         text: imported === 0 ? "Up to date, no new transactions." : `Imported ${imported} new transaction${imported === 1 ? "" : "s"}.`,
       });
@@ -88,7 +93,7 @@ export function BankConnection({ uid }: { uid: string }) {
 
       <div className="mt-3 flex gap-3">
         {hasActive && (
-          <Button variant="secondary" fullWidth onClick={handleSync} disabled={busy !== null} className="h-11">
+          <Button variant="secondary" fullWidth onClick={handleSync} disabled={busy !== null || syncsLeft === 0} className="h-11">
             <RefreshCwIcon className={`h-4 w-4 ${busy === "sync" ? "animate-spin" : ""}`} aria-hidden="true" />
             {busy === "sync" ? "Syncing" : "Sync now"}
           </Button>
@@ -103,6 +108,13 @@ export function BankConnection({ uid }: { uid: string }) {
           {busy === "connect" ? "Opening Revolut…" : hasActive ? "Reconnect" : "Connect Revolut"}
         </Button>
       </div>
+      {hasActive && (
+        <p className="mt-2 text-[13px] text-muted">
+          {syncsLeft === 0
+            ? "No extra syncs left today; the automatic ones still run at 13:00 and 23:00."
+            : `${syncsLeft} of ${limit} extra syncs left today.`}
+        </p>
+      )}
       {note && (
         <p role="status" className={`mt-3 text-sm ${note.error ? "text-negative" : "text-positive"}`}>
           {note.text}
@@ -130,6 +142,10 @@ export function BankConnection({ uid }: { uid: string }) {
             <p>
               New transactions, including pending card payments, are imported at 13:00 and 23:00. Moves between your own
               accounts aren't counted as spending or income.
+            </p>
+            <p>
+              Open banking allows about 4 reads of an account a day, and the automatic syncs use 2, so Sync now works up to{" "}
+              {limit} times a day (counted per day in Lisbon).
             </p>
             {!hasActive && (
               <p>

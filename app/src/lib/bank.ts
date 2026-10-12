@@ -57,11 +57,23 @@ export async function startBankConnect(): Promise<void> {
   window.location.assign(data.url);
 }
 
-/** Runs the same import as the daily job, now. Returns how many new transactions arrived. */
-export async function syncBankNow(): Promise<number> {
-  const call = httpsCallable<void, { imported: number }>(functions, "bank_sync_now", LONG_CALL);
+/** Manual syncs allowed a day, besides the two automatic ones (functions/main.py, MANUAL_SYNCS_PER_DAY). */
+export const MANUAL_SYNCS_PER_DAY = 2;
+
+/** Today in Lisbon (YYYY-MM-DD), the day the sync limit counts in. */
+export function lisbonToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Lisbon" }).format(new Date());
+}
+
+/**
+ * Runs the same import as the daily job, now. Returns how many new
+ * transactions arrived and how many manual syncs are left today; the server
+ * refuses once today's are used up.
+ */
+export async function syncBankNow(): Promise<{ imported: number; syncsLeft: number }> {
+  const call = httpsCallable<void, { imported: number; syncsLeft: number }>(functions, "bank_sync_now", LONG_CALL);
   const { data } = await call();
-  return data.imported;
+  return data;
 }
 
 export function subscribeBankAccounts(uid: string, cb: (accounts: AccountLink[]) => void) {

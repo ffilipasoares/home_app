@@ -34,6 +34,8 @@ import asyncio
 import os
 import time
 import traceback
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import firebase_admin
 from firebase_admin import firestore
@@ -476,9 +478,43 @@ def bank_connect_finish(req: https_fn.CallableRequest) -> dict:
 @https_fn.on_call(secrets=[ENABLE_BANKING_PRIVATE_KEY], timeout_sec=540)
 def bank_sync_now(req: https_fn.CallableRequest) -> dict:
     """The Settings page's "Sync now" button: same as the daily run, for
-    the signed-in user only."""
+    the signed-in user only, at most MANUAL_SYNCS_PER_DAY times a day."""
     uid = _require_owner(req)
-    return {"imported": bank_sync.sync_user(uid, _bank_client())}
+    left = _use_manual_sync(uid)
+    return {"imported": bank_sync.sync_user(uid, _bank_client()), "syncsLeft": left}
+
+
+# Open banking allows about 4 unattended reads of an account a day; the two
+# scheduled syncs use two, so "Sync now" gets the rest (decided by the
+# user). Counted per Lisbon day, the scheduler's clock.
+MANUAL_SYNCS_PER_DAY = 2
+
+
+def _lisbon_today() -> str:
+    return datetime.now(ZoneInfo("Europe/Lisbon")).date().isoformat()
+
+
+def _use_manual_sync(uid: str) -> int:
+    """Counts one manual sync for today, or refuses it once the day's are
+    used up. The count lives in bankSecrets/{uid}, which only the server can
+    write, so it can't be reset from the app; a copy in users/{uid} lets the
+    app show how many are left. Returns how many are left after this one.
+    (One user, and the button is disabled while a sync runs, so a plain
+    read-then-write is enough.)"""
+    db = firestore.client()
+    today = _lisbon_today()
+    secrets_ref = db.collection("bankSecrets").document(uid)
+    usage = (secrets_ref.get().to_dict() or {}).get("manualSyncs") or {}
+    used = usage.get("count", 0) if usage.get("date") == today else 0
+    if used >= MANUAL_SYNCS_PER_DAY:
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.RESOURCE_EXHAUSTED,
+            f"You've used today's {MANUAL_SYNCS_PER_DAY} extra syncs. The automatic syncs at 13:00 and 23:00 still run.",
+        )
+    record = {"date": today, "count": used + 1, "limit": MANUAL_SYNCS_PER_DAY}
+    secrets_ref.set({"manualSyncs": record}, merge=True)
+    db.collection("users").document(uid).set({"manualSyncs": record}, merge=True)
+    return MANUAL_SYNCS_PER_DAY - used - 1
 
 
 # Twice a day (13:00 and 23:00 Lisbon time), as decided by the user. Open
