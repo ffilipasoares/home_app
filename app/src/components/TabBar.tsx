@@ -1,11 +1,11 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutGridIcon, ReceiptTextIcon, Settings2Icon, UploadIcon } from "lucide-react";
+import { ChartPieIcon, LayoutGridIcon, ReceiptTextIcon, Settings2Icon } from "lucide-react";
 
 const TABS = [
   { to: "/", label: "Dashboard", icon: LayoutGridIcon, end: true },
   { to: "/transactions", label: "Transactions", icon: ReceiptTextIcon, end: false },
-  { to: "/import", label: "Import", icon: UploadIcon, end: false },
+  { to: "/analysis", label: "Analysis", icon: ChartPieIcon, end: false },
   { to: "/settings", label: "Settings", icon: Settings2Icon, end: false },
 ];
 

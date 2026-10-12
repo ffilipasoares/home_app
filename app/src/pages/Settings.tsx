@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarClockIcon, LogOutIcon, PiggyBankIcon, TagsIcon } from "lucide-react";
+import { CalendarClockIcon, LogOutIcon, PiggyBankIcon, TagsIcon, UploadIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { subscribeDashboard } from "../lib/dashboard";
 import { formatCurrency, formatMoney } from "../lib/format";
@@ -154,6 +154,18 @@ export function Settings() {
               );
             })}
           </div>
+        </section>
+
+        <section aria-labelledby="import-heading">
+          <SectionHeader id="import-heading" title="Other banks" />
+          <RowGroup className="mt-3">
+            <ValueRow
+              leading={<IconTile icon={UploadIcon} color="#A1A1AA" />}
+              label="Import a CSV statement"
+              description="From a bank that isn't connected"
+              to="/import"
+            />
+          </RowGroup>
         </section>
 
         <div>

@@ -214,6 +214,17 @@ distributing a native app:
   goal vs saved, and per-category bars — plain divs, no chart library.
   Categories are free text, so their icon and colour are picked from words
   in the name (`app/src/lib/categoryLook.ts`).
+- Analysis tab (replaced Import, which moved under Settings): for the
+  selected month, a donut of spending by category (at most six slices,
+  the rest folded into "Other"), the estimated month as a 100% bar of
+  income (the Dashboard's projection), spending pace day by day against
+  last month, saved per month against the goal, and the biggest expenses.
+  Charts follow the dataviz skill: its validated dark categorical palette
+  in fixed slot order, assigned by each category's position in Settings
+  (`app/src/lib/chartColors.ts`); the lime accent only for emphasis
+  (savings, this month); every chart has a legend/list that doubles as its
+  table view, and tap/hover readouts. Spending is counted as on the
+  Dashboard (`app/src/lib/spending.ts`).
 
 ## 4. Data flow (daily run)
 

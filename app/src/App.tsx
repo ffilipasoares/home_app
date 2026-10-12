@@ -4,6 +4,7 @@ import { AuthGate } from "./components/AuthGate";
 import { Dashboard } from "./pages/Dashboard";
 import { Transactions } from "./pages/Transactions";
 import { Import } from "./pages/Import";
+import { Analysis } from "./pages/Analysis";
 import { Settings } from "./pages/Settings";
 import { BankCallback } from "./pages/BankCallback";
 import { SelectedMonthProvider } from "./components/SelectedMonthProvider";
@@ -20,6 +21,8 @@ export function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
+            <Route path="/analysis" element={<Analysis />} />
+            {/* Reached from Settings now that Analysis has its tab. */}
             <Route path="/import" element={<Import />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/bank-callback" element={<BankCallback />} />

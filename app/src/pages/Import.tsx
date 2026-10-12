@@ -1,6 +1,6 @@
 import { useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2Icon, FileTextIcon, Loader2Icon, UploadIcon } from "lucide-react";
+import { CheckCircle2Icon, ChevronLeftIcon, FileTextIcon, Loader2Icon, UploadIcon } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { guessColumns, parseAmount, parseBankCsv, parseDate, type RawRow } from "../lib/csv";
 import { importTransactions, type ImportRow } from "../lib/transactions";
@@ -151,7 +151,14 @@ export function Import() {
 
   return (
     <>
-      <PageHeader title="Import" />
+      <PageHeader
+        title="Import"
+        action={
+          <Link to="/settings" className="flex items-center gap-1 text-sm font-medium text-muted hover:text-ink">
+            <ChevronLeftIcon className="h-4 w-4" aria-hidden="true" /> Settings
+          </Link>
+        }
+      />
       <div className="px-5 pb-8">
         <p className="text-[15px] text-muted">Add transactions from a bank that isn't connected. Revolut syncs on its own.</p>
 
