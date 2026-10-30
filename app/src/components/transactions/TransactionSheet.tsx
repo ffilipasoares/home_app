@@ -54,16 +54,18 @@ function EditForm({
 }: Omit<Props, "open" | "transaction" | "onAdded"> & { transaction: Transaction }) {
   const [category, setCategory] = useState(tx.category ?? "");
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
+  const [note, setNote] = useState(tx.note ?? "");
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string>();
 
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
+  const noteDirty = note.trim() !== (tx.note ?? "");
   // Confirming an older AI suggestion counts as a change too.
   const saveCategory = !!category && (categoryDirty || tx.needsReview);
-  const canSave = (saveCategory || monthDirty) && /^\d{4}-\d{2}$/.test(budgetMonth);
-  const confirmOnly = tx.needsReview && !!tx.category && !categoryDirty && !monthDirty;
+  const canSave = (saveCategory || monthDirty || noteDirty) && /^\d{4}-\d{2}$/.test(budgetMonth);
+  const confirmOnly = tx.needsReview && !!tx.category && !categoryDirty && !monthDirty && !noteDirty;
   const current = categories.find((c) => c.id === tx.category);
   const shown = amountShown(tx, currency);
   const unsure =
@@ -142,6 +144,8 @@ function EditForm({
           <p className="mt-2 text-[13px] text-muted">The month this transaction is counted in on the Dashboard.</p>
         </div>
 
+        <NoteField value={note} onChange={setNote} />
+
         {error && <FieldError>{error}</FieldError>}
       </SheetBody>
       <SheetFooter>
@@ -172,6 +176,7 @@ function EditForm({
                   saveTransactionEdit(uid, tx.id, {
                     category: saveCategory ? category : undefined,
                     month: monthDirty ? budgetMonth : undefined,
+                    note: noteDirty ? note : undefined,
                   }),
                 )
               }
@@ -199,6 +204,7 @@ function AddForm({
   const [name, setName] = useState("");
   const [category, setCategory] = useState(""); // "" = let the AI choose
   const [date, setDate] = useState(todayIso());
+  const [note, setNote] = useState("");
   const [errors, setErrors] = useState<{ name?: string; amount?: string; date?: string; save?: string }>({});
   const [busy, setBusy] = useState(false);
 
@@ -218,6 +224,7 @@ function AddForm({
         amount: direction === "out" ? -value : value,
         currency,
         category: category || null,
+        note,
       });
       onAdded(month);
       onClose();
@@ -288,6 +295,7 @@ function AddForm({
           />
           {errors.date && <FieldError>{errors.date}</FieldError>}
         </div>
+        <NoteField value={note} onChange={setNote} />
         {errors.save && <FieldError>{errors.save}</FieldError>}
       </SheetBody>
       <SheetFooter>
@@ -299,5 +307,25 @@ function AddForm({
         </Button>
       </SheetFooter>
     </>
+  );
+}
+
+const NOTE_MAX = 200;
+
+/** An optional note of your own; it's searchable on the Transactions page. */
+function NoteField({ value, onChange }: { value: string; onChange: (note: string) => void }) {
+  return (
+    <div>
+      <FieldLabel htmlFor="tx-note">Note (optional)</FieldLabel>
+      <input
+        id="tx-note"
+        type="text"
+        value={value}
+        maxLength={NOTE_MAX}
+        placeholder="e.g. Mum's birthday dinner"
+        onChange={(e) => onChange(e.target.value)}
+        className={`${FIELD} mt-2`}
+      />
+    </div>
   );
 }

@@ -10,8 +10,10 @@ export function normalizeMerchant(raw: string): string {
     .toUpperCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "") // strip accents (Descrição -> DESCRICAO)
-    .replace(/\d+/g, " ") // drop card/store/reference numbers
-    .replace(/[^A-Z& ]+/g, " ") // drop punctuation
+    // Drop card/store/reference numbers (4+ digits, "LIDL 4521"), keep the
+    // short ones that are part of a name ("TRADING 212", "7-ELEVEN").
+    .replace(/[0-9]{4,}/g, " ")
+    .replace(/[^A-Z0-9& ]+/g, " ") // drop punctuation
     .replace(/\s+/g, " ")
     .trim();
 }

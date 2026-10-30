@@ -119,6 +119,8 @@ export type Transaction = {
   addedManually?: boolean;
   /** Why the AI couldn't categorize this one (cleared once it succeeds). */
   aiError?: string;
+  /** Your own note on what it was for ("Mum's birthday dinner"); searchable. */
+  note?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -166,6 +168,8 @@ export type DashboardView = {
   joaoSalary: number;
   /** Spending per category, fixed expenses included (UNCATEGORIZED_FIXED: a fixed expense with no category yet). */
   totalsByCategory: Record<string, number>;
+  /** The fixed-expense part of each category's total. Absent on dashboards from before it was added. */
+  fixedByCategory?: Record<string, number>;
   totalExpenses: number;
   fixedExpensesTotal: number;
   savingsGoalTarget: number;

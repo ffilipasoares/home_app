@@ -36,7 +36,7 @@ export function matches(tx: Transaction, f: Filters, categories: CategoryDef[], 
   const amounts = [Math.abs(tx.amount), shown === undefined ? null : Math.abs(shown)]
     .filter((n): n is number => n !== null)
     .map((n) => n.toFixed(2));
-  const haystack = [tx.merchantRaw, label, tx.date, ...amounts].join(" ").toLowerCase();
+  const haystack = [tx.merchantRaw, label, tx.note ?? "", tx.date, ...amounts].join(" ").toLowerCase();
   return q
     .split(/\s+/)
     .every((word) => haystack.includes(word.replace(",", ".")));

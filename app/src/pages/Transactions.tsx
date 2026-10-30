@@ -148,7 +148,7 @@ export function Transactions() {
               type="search"
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search name, category or amount"
+              placeholder="Search name, note or amount"
               aria-label="Search transactions"
               className="w-full bg-transparent text-[15px] text-ink placeholder:text-subtle focus:outline-none [&::-webkit-search-cancel-button]:hidden"
             />

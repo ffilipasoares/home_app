@@ -5,6 +5,12 @@ salary when it isn't set, the month's older monthlyIncome/{month} entry). Always
 household's transaction volume this is cheap, and it means the result is
 correct even if a write is retried or edited repeatedly (see main.py).
 
+Spending is net per category: a refund or a reimbursement in a spending
+category takes its amount off that category (floored at 0 for the month).
+A month that's over keeps the settings it closed with (its `basis`), so
+changing salaries, fixed expenses or the goal only affects the current
+month onwards.
+
 Every figure is computed once per display currency (fx.DISPLAY_CURRENCIES:
 EUR and GBP) into `views`, so the app can switch between them. Each
 transaction contributes its own amount in that currency (`amountIn`,
@@ -19,7 +25,8 @@ yet is left out of that currency's totals and counted in its
 
 import calendar
 import time
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -40,6 +47,22 @@ def _month_rate_date(month: str) -> str:
     return min(last_day, date.today()).isoformat()
 
 
+# The settings that feed a month's totals, frozen onto its dashboard doc.
+BASIS_FIELDS = ("fixedExpenses", "savingsGoal", "salaryCurrency", "filipaSalaryAmount", "joaoSalary")
+
+
+def _basis_from(settings: dict) -> dict:
+    basis = {field: settings[field] for field in BASIS_FIELDS if field in settings}
+    basis.setdefault("fixedExpenses", [])
+    basis.setdefault("savingsGoal", {"type": "fixed", "value": 0})
+    return basis
+
+
+def _current_month() -> str:
+    """This month in Lisbon (the household's clock, as the scheduler's)."""
+    return datetime.now(ZoneInfo("Europe/Lisbon")).strftime("%Y-%m")
+
+
 def recompute_month(uid: str, month: str) -> None:
     db = firestore.client()
     user_ref = db.collection("users").document(uid)
@@ -54,7 +77,17 @@ def recompute_month(uid: str, month: str) -> None:
     categories: list[CategoryDef] = (categories_snap.to_dict() or {}).get("categories", [])
     category_by_id = {c["id"]: c for c in categories}
 
-    settings_data: UserSettings = settings_snap.to_dict() or {}  # type: ignore[assignment]
+    # The settings a month is worked out with (salaries, fixed expenses,
+    # savings goal). While a month is open it follows Settings; once it's
+    # over it keeps the ones it closed with, so a raise or a new rent later
+    # doesn't rewrite past months. Recalculating a closed month (a late
+    # transaction, a formula change) still uses its own saved basis.
+    dashboard_ref = user_ref.collection("dashboards").document(month)
+    saved_basis = (dashboard_ref.get().to_dict() or {}).get("basis")
+    if month < _current_month() and saved_basis:
+        settings_data: UserSettings = saved_basis  # type: ignore[assignment]
+    else:
+        settings_data = _basis_from(settings_snap.to_dict() or {})  # type: ignore[assignment]
     fixed_expenses = settings_data.get("fixedExpenses", [])
     savings_goal = settings_data.get("savingsGoal", {"type": "fixed", "value": 0})
 
@@ -114,9 +147,10 @@ def recompute_month(uid: str, month: str) -> None:
         # The home-currency view again at the top level, as before views
         # existed, for any older copy of the app still cached on a device.
         **{k: v for k, v in home.items() if k not in ("currency", "rates", "rateDate", "missingRate")},  # type: ignore[typeddict-item]
+        "basis": settings_data,
         "updatedAt": int(time.time() * 1000),
     }
-    user_ref.collection("dashboards").document(month).set(dashboard)
+    dashboard_ref.set(dashboard)
 
 
 def _view(
@@ -136,6 +170,8 @@ def _view(
     total_expenses = 0.0
     unconverted_count = 0
     totals_by_category: dict[str, float] = {}
+    net_by_category: dict[str, float] = {}
+    fixed_by_category: dict[str, float] = {}
 
     for tx in transactions:
         amount = amount_in(tx, currency)
@@ -157,11 +193,17 @@ def _view(
                 {"date": tx.get("date"), "merchant": tx.get("merchantRaw", ""), "amount": -amount, "category": tx["category"]}
             )
             continue
-        spend = abs(min(0.0, amount))  # only money out counts as an expense
-        if spend == 0:
-            continue
-        totals_by_category[tx["category"]] = totals_by_category.get(tx["category"], 0.0) + spend
-        total_expenses += spend
+        # Money out adds to its category, money back in (a refund, a friend
+        # paying their half) takes it off again: a category's spending is
+        # what it cost net. Netted per category, then floored at 0 below.
+        net_by_category[tx["category"]] = net_by_category.get(tx["category"], 0.0) - amount
+
+    # A category can't cost less than nothing in a month (a refund for
+    # something bought last month): its total stops at 0.
+    for category, net in net_by_category.items():
+        if net > 0:
+            totals_by_category[category] = net
+            total_expenses += net
 
     # A hand-entered value in another currency whose rate can't be looked
     # up right now counts as 0 in this view; missingRate lets the app say so.
@@ -198,6 +240,7 @@ def _view(
         if value:
             key = category if definition else UNCATEGORIZED_FIXED
             totals_by_category[key] = totals_by_category.get(key, 0.0) + value
+            fixed_by_category[key] = fixed_by_category.get(key, 0.0) + value
     joao_salary = convert(*joao)
     total_income = filipa_salary + joao_salary
 
@@ -221,6 +264,9 @@ def _view(
         "filipaSalarySource": filipa_salary_source,  # type: ignore[typeddict-item]
         "joaoSalary": joao_salary,
         "totalsByCategory": totals_by_category,
+        # The fixed-expense part of each category's total, so a projection
+        # can keep it as is and project only the rest.
+        "fixedByCategory": fixed_by_category,
         "totalExpenses": total_expenses,
         "fixedExpensesTotal": fixed_expenses_total,
         "savingsGoalTarget": savings_goal_target,

@@ -47,7 +47,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 import bank_sync
 from budget_month import resolve_budget_month
 from categorize import CONFIDENCE_THRESHOLD, CategorizationError, categorize_transaction
-from category_rules import find_exact_category_rule, list_recent_category_rules
+from category_rules import find_exact_category_rule, is_rule_key, list_recent_category_rules
 from dashboard import recompute_month
 from enable_banking import Client, EnableBankingError
 from fx import amounts_in, missing_display_currencies
@@ -132,7 +132,7 @@ async def _auto_categorize(uid: str, tx_id: str, tx: Transaction) -> bool:
         }
     )
 
-    if result["confidence"] >= CONFIDENCE_THRESHOLD:
+    if result["confidence"] >= CONFIDENCE_THRESHOLD and is_rule_key(tx["merchantNormalized"]):
         db.collection("users").document(uid).collection("categoryRules").document(tx["merchantNormalized"]).set(
             {
                 "merchantNormalized": tx["merchantNormalized"],
@@ -237,22 +237,28 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
                 )
                 month = new_month  # so this invocation's own recompute below already uses it
 
-        firestore.client().collection("users").document(uid).collection("categoryRules").document(
-            after["merchantNormalized"]
-        ).set(
-            {
-                "merchantNormalized": after["merchantNormalized"],
-                "category": after["category"],
-                "timesConfirmed": Increment(1),
-                "lastUpdated": int(time.time() * 1000),
-            },
-            merge=True,
-        )
+            # A category you chose teaches the cache, unless the name is too
+            # generic to mean one merchant (category_rules.is_rule_key).
+            if is_rule_key(after.get("merchantNormalized", "")):
+                firestore.client().collection("users").document(uid).collection("categoryRules").document(
+                    after["merchantNormalized"]
+                ).set(
+                    {
+                        "merchantNormalized": after["merchantNormalized"],
+                        "category": after["category"],
+                        "timesConfirmed": Increment(1),
+                        "lastUpdated": int(time.time() * 1000),
+                    },
+                    merge=True,
+                )
     elif after and _awaiting_auto_category(after):
         # asyncio.run() is safe here: Cloud Functions dispatches this
         # (synchronous) handler outside any existing event loop, so this
         # always starts a fresh one rather than conflicting with one.
-        _categorize_safely(uid, tx_id, after)
+        if _categorize_safely(uid, tx_id, after):
+            # Saving the category fires this trigger again, and that run
+            # recalculates the month; doing it here too would only race it.
+            return
 
     if after and _ensure_display_amounts(uid, tx_id, after):
         return  # that write fires this trigger again, which recomputes the month

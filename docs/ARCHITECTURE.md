@@ -1,11 +1,14 @@
 # Architecture Design — Home Finance Agent
 
-Status: **Phase 1 built; Phase 2 step 1 of 4 built** — categorization is
-automatic on import (manual CSV input still); the data model and currency
-merge (`amountHome`/`fx.py`) are in place, but bank sync itself (the
-Revolut connection and daily pull) isn't built yet — see §11. Backend
-(`functions/`) is Python; PWA (`app/`) is TypeScript. Last updated
-2026-09-13.
+Status: **Phases 1 and 2 built and deployed** — Revolut (EUR and GBP
+joint accounts) syncs through Enable Banking twice a day, plus up to two
+manual syncs a day; every transaction is categorized by the agent as it
+lands; salaries, fixed expenses, the savings goal and categories are set
+in Settings (not per month on the Dashboard); the CSV import was removed.
+Everything server-side is 2nd-gen Cloud Functions for Firebase (Python,
+`functions/`): Firestore triggers, callables and a `@scheduler_fn`
+schedule — no Cloud Run Job. PWA (`app/`) is TypeScript. Phase 3 (§11)
+is not started. Last updated 2026-10-30.
 
 ## 1. Goal & scope
 
@@ -43,16 +46,19 @@ flowchart TB
         OBA[GoCardless Bank Account Data /\nEnable Banking]
     end
 
-    subgraph GCP["Google Cloud Project"]
-        SCHED[Cloud Scheduler\ndaily cron] -->|OIDC-authenticated trigger| JOB
-        JOB[Cloud Run Job\nADK agent pipeline] -->|fetch transactions| OBA
-        JOB -->|Gemini: parse / categorize| GEMINI[Gemini API\nVertex AI]
-        JOB -->|read/write| FS[(Firestore\ntransactions, rules,\ndashboards, settings)]
-        SM[Secret Manager\nbank tokens, API keys] -.-> JOB
+    subgraph GCP["Firebase project (Google Cloud)"]
+        SCHED["daily_bank_sync\n@scheduler_fn, 13:00 and 23:00 Lisbon"] -->|sync every account| OBA
+        CALL["Callables\nbank_connect_start / finish,\nbank_sync_now (2 a day)"] -->|consent, sync| OBA
+        SCHED -->|new transactions,\nknown merchants pre-categorized| FS[(Firestore\ntransactions, rules,\ndashboards, settings)]
+        CALL --> FS
+        SM[Secret Manager\nEnable Banking key] -.-> SCHED
+        SM -.-> CALL
 
-        FS <-->|read dashboards,\nedit category, edit goals| WEBSDK[Firestore Web SDK]
-        CF[Cloud Function\non category edit] -->|recompute month,\nupdate learned rule| FS
+        TRIG["on_transaction_write\non_user_settings_write\n(Firestore triggers)"] -->|ADK agent| GEMINI[Gemini\nVertex AI]
+        FS -->|transaction / settings change| TRIG
+        TRIG -->|category, learned rule,\nrecomputed dashboards| FS
 
+        FS <-->|read dashboards, edit\ncategory, note, settings| WEBSDK[Firestore Web SDK]
         HOST[Firebase Hosting\nPWA static assets] --> WEBSDK
         AUTH[Firebase Auth\nGoogle sign-in, 1 user] --> WEBSDK
     end
@@ -65,8 +71,9 @@ flowchart TB
 
 Two independent halves, joined only by Firestore:
 
-- **Batch pipeline** (server-side, once a day): sync → parse → categorize →
-  store → aggregate. Nothing here is user-facing or latency-sensitive.
+- **Backend** (server-side, event-driven): the twice-daily sync stores new
+  transactions; each write fires a trigger that categorizes it (the agent)
+  and recomputes its month. Nothing here is latency-sensitive.
 - **Dashboard app** (client-side, on-demand): a PWA that reads/writes
   Firestore directly through the Firebase Web SDK — no custom API server
   needed for the parts that are just CRUD, which removes an entire service
@@ -93,13 +100,16 @@ is money spent on a capability (durable multi-turn memory across a chat UI)
 this pipeline doesn't need: it's one deterministic batch run a day with no
 back-and-forth conversation.
 
-**Recommendation:** build the pipeline as an ADK agent (tools = fetch
-transactions, categorize, write to Firestore, recompute dashboard — see
-§5) for the structure, tracing, and testability ADK gives you, but run it
-as a plain **Cloud Run Job** invoked by Cloud Scheduler, not deployed onto
-Agent Engine. A few minutes of compute once a day sits inside Cloud Run's
-always-free tier; Agent Engine's session/memory billing buys you nothing
-here.
+**What was built:** the categorizer is an ADK agent (§5) used as a
+library inside ordinary 2nd-gen Cloud Functions for Firebase, not deployed
+onto Agent Engine. (The first design ran one batch pipeline as a Cloud
+Run Job; it became functions instead, because categorizing each
+transaction from its own Firestore trigger needs no separate job,
+scheduler setup or IAM wiring.) The sync is `daily_bank_sync`
+(`@scheduler_fn.on_schedule`), the agent runs from `on_transaction_write`,
+and dashboards are recomputed by the same triggers. A few minutes of
+compute a day sits inside the free tier; Agent Engine's session/memory
+billing buys nothing here.
 
 Keep Agent Engine in your back pocket for a genuine future use case:
 a **"ask your finances"** chat feature in the dashboard ("how much did I
@@ -169,15 +179,15 @@ picked, the integration is the same shape:
   flow: you authenticate with your bank once via the aggregator's hosted
   redirect; the resulting token is stored in **Secret Manager**, never in
   Firestore or code.
-- The daily Cloud Run Job calls the aggregator's read-only transactions
-  endpoint with a `since` cursor (last synced transaction date/id, stored
-  per account in Firestore) — so it only pulls what's new.
-- Treat the consent-expiry date as data: surface "reconnect your bank" as a
-  dashboard banner when it's within a week of expiring, since a lapsed
-  consent silently stops the daily sync otherwise.
-- Keep a manual CSV/PDF upload path as a fallback tool in the agent (same
-  parsing step, different source) for any account the aggregator doesn't
-  cover, or for bootstrapping history before the first consent completes.
+- The twice-daily `daily_bank_sync` function calls the aggregator's
+  read-only transactions endpoint from the last booked date (stored per
+  account in Firestore), so it only pulls what's new.
+- The consent-expiry date is data: the Dashboard shows a "Revolut access
+  ends on …" banner when it's under 7 days away, and "Revolut needs
+  reconnecting" once a sync found it expired, both linking to Settings.
+- The CSV import that was the fallback was removed once the sync covered
+  everything (decided by the user); a transaction paid from elsewhere is
+  added by hand on the Transactions page.
 
 ### 3.4 Data store: Firestore
 
@@ -231,34 +241,43 @@ distributing a native app:
 
 ```mermaid
 sequenceDiagram
-    participant Sched as Cloud Scheduler
-    participant Job as Cloud Run Job (ADK agent)
-    participant OB as Open Banking API
-    participant Gemini as Gemini 3.5 Flash-Lite
+    participant Sync as daily_bank_sync (@scheduler_fn, 2×/day)
+    participant OB as Enable Banking
     participant FS as Firestore
+    participant Trig as on_transaction_write
+    participant Gemini as Gemini (ADK agent)
 
-    Sched->>Job: trigger (OIDC), once/day
-    Job->>FS: read last sync cursor per account
-    Job->>OB: fetch transactions since cursor
-    OB-->>Job: new transactions
-    loop each transaction
-        Job->>FS: lookup merchant in categoryRules cache
-        alt cache hit, high trust
-            FS-->>Job: category
-        else cache miss / ambiguous
-            Job->>Gemini: categorize(transaction, taxonomy)
-            Gemini-->>Job: category, confidence
-            Job->>FS: upsert categoryRules (if confidence high)
+    Sync->>FS: read accounts, last booked date
+    Sync->>OB: fetch transactions since then
+    OB-->>Sync: transactions (booked and pending)
+    Sync->>FS: read categoryRules for the new merchants
+    Note over Sync: exact learned match: category set before the write
+    Sync->>FS: write new transactions, patch settled pending ones
+    Sync->>FS: update account (last synced, consent status)
+    loop each written transaction
+        FS-->>Trig: document written
+        alt still uncategorized
+            Trig->>Gemini: categorize(merchant, amount, your categories)
+            Gemini-->>Trig: category, confidence
+            Trig->>FS: set category (+ learned rule if confident)
+            Note over Trig: stop here: that write fires the trigger again
+        else categorized
+            Trig->>FS: recompute the month's dashboard
         end
-        Job->>FS: upsert transaction (idempotent by external tx id)
     end
-    Job->>FS: recompute month's dashboard rollup (incl. Settings' fixed items)
-    Job->>FS: update sync cursor
+    Sync->>FS: recompute every month (picks up formula changes)
 ```
 
 Idempotency: every transaction is keyed by the aggregator's stable
 external transaction id, so a retried or overlapping run never
 double-counts — a write is always an upsert, never an append.
+
+Trigger load: when the agent sets a category, the handler returns straight
+away; the category write fires the trigger again, and that run does the
+recompute, so each categorized transaction costs one recompute, not two.
+Merchants already learned exactly are categorized inside the sync
+(`_apply_learned_categories` in `functions/bank_sync.py`), so they fire
+one trigger and never call the agent.
 
 ## 5. Categorization agent
 
@@ -306,9 +325,19 @@ code (`main.py` → `_auto_categorize`) — that isn't a shortcut around
 nothing to reason about. What reaches the agent is specifically the part
 that requires judgment: a merchant with no exact match.
 
+The rule key is the merchant normalized the same way in Python
+(`functions/merchant.py`) and the app (`app/src/lib/merchant.ts`):
+upper-cased, accents stripped, runs of four or more digits (card numbers,
+references) dropped, but short numbers kept, so "TRADING 212" and
+"7-ELEVEN" stay distinct brands. A name that normalizes to nothing
+("12345", "***") or to a generic word that says nothing about the
+merchant (MBWAY, TRANSFER, PAYPAL, REVOLUT, … — `GENERIC_NAMES` in
+`functions/category_rules.py`) is never learned or matched, so one
+categorized MB WAY payment can't decide every other one.
+
 | Step | Where |
 |---|---|
-| Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `main.py` → `_auto_categorize`, `category_rules.py` → `find_exact_category_rule` |
+| Exact-match cache lookup — avoids invoking the agent at all for a known merchant | `bank_sync.py` → `_apply_learned_categories` (during the sync), `main.py` → `_auto_categorize`, `category_rules.py` → `find_exact_category_rule` |
 | Agent run: optionally consult recent rules, then commit `{category, confidence}` | `categorize.py` → `categorize_transaction` |
 | Cache write — only on a confident fresh guess, so an unsure answer never becomes "ground truth" | `main.py` → `_auto_categorize` |
 | Retry anything still uncategorized, sequentially (nightly, or on demand) | `main.py` → `daily_bank_sync` / `_categorize_pending`, `scripts/categorize_backlog.py` |
@@ -473,6 +502,23 @@ after Phase 0 testing:
   or a manual edit) — a later manual month override isn't fought by this
   rule re-asserting itself, since it only runs on that category
   transition, not on every write.
+- **Refunds** (decided in review): money coming back in a spending
+  category (a refund, a friend paying their half) reduces that category,
+  so a €40 dinner with €20 paid back counts as €20. A category never goes
+  below zero: one with more back than out simply drops out. Incoming money
+  that isn't a refund belongs in an income category instead.
+- **Closed months keep their settings** (decided in review): each
+  dashboard stores the fixed expenses, savings goal and salaries it was
+  computed with (`basis`). Once a month is over, recomputing it (a late
+  edit, the daily recompute) uses that stored basis, so changing the rent
+  in November doesn't rewrite October. The current month always follows
+  Settings. A past month without a basis yet (computed before this
+  existed) takes today's settings once and keeps them from then on.
+- **Estimated month** (Dashboard card and Analysis): the spreadsheet's
+  method — for days 1–29 each category is scaled by 29 ÷ days so far —
+  but only the variable part is scaled; a category's fixed expenses
+  (`fixedByCategory`, e.g. rent in Needs) count once, as they are.
+  Estimated savings = income − Σ estimates.
 - Fixed monthly expenses (rent etc. — configured in Settings, global,
   never detected from a transaction) shown as their own list so the
   money-left number is traceable to something other than "trust me".
@@ -491,6 +537,9 @@ after Phase 0 testing:
   expenses, the savings goal or a salary setting recalculates every month
   (`on_user_settings_write`), and the twice-daily sync recalculates every
   month too, so a change to this formula reaches old months on its own.
+- A transaction can carry an optional **note** of your own (up to 200
+  characters, set when adding or editing it); it shows under the name and
+  the Transactions search matches it. The sync never overwrites it.
 - A transaction can be **deleted** outright (Transactions screen) — the
   Cloud Function trigger fires on delete too and recomputes the month it
   was counted in, so it drops out of every total, not just the visible
@@ -500,13 +549,14 @@ after Phase 0 testing:
 
 ## 9. Security & privacy notes
 
-- Bank tokens and any API keys live only in **Secret Manager**, read only
-  by the Cloud Run Job's service account (least-privilege IAM — no other
-  identity in the project can read those secrets).
+- The Enable Banking private key lives only in **Secret Manager**, read
+  only by the Cloud Functions' runtime service account; session ids sit
+  in `bankSecrets/{uid}`, which security rules make unreachable from the
+  app.
 - Firestore is reachable only via the client SDK from an authenticated,
   allow-listed Firebase Auth user (you), enforced in security rules — the
-  Cloud Run Job's service account is the only other principal with write
-  access, and only to this project's Firestore.
+  Cloud Functions' service account (Admin SDK) is the only other
+  principal with write access, and only to this project's Firestore.
 - No third party ever receives your data except the two you've explicitly
   chosen to: the open banking aggregator (read-only, consented, revocable)
   and the Gemini API (transaction text/PDF, for parsing/categorization —
@@ -524,7 +574,7 @@ tiers:
 
 | Component | Expected cost |
 |---|---|
-| Cloud Run Job (few minutes/day) | $0 (well under the always-free tier) |
+| Cloud Functions (few minutes/day) | $0 (well under the always-free tier) |
 | Cloud Scheduler (1 job) | $0 (3 jobs free) |
 | Firestore (reads/writes/storage for one user) | $0 (far under the daily free quota) |
 | Firebase Hosting + Auth | $0 (free tier covers a personal PWA) |
@@ -642,8 +692,9 @@ Realistic total: **under $1–2/month**, likely $0 most months.
       arrives at once, so that many categorization runs start in
       parallel; a few may hit Vertex AI rate limits and stay "needs
       review" for a manual tap.
-   4. **Consent-expiry handling** — a "reconnect Revolut" banner before
-      the ~90-day PSD2 consent lapses.
+   4. **Consent-expiry handling — built.** A Dashboard banner when the
+      consent is under 7 days from lapsing, or once a sync finds it
+      expired, linking to Reconnect in Settings.
 4. **Phase 3 (stretch) — conversational "ask your finances".** A chat
    affordance in the dashboard ("how much on dining out in June vs May?"),
    read-only, grounded in the same Firestore data. A prior attempt at this

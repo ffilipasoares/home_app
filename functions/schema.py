@@ -108,6 +108,7 @@ class Transaction(TypedDict, total=False):
     # EUR and GBP pockets). Never categorized, never counted in any total.
     internalTransfer: bool
     addedManually: bool  # entered by hand on the Transactions page, e.g. paid from another account
+    note: str  # your own note on what it was for; searchable in the app
     pending: bool  # a card payment the bank hasn't settled yet; updated or removed by the next sync
     createdAt: int
     updatedAt: int
@@ -141,7 +142,8 @@ class DashboardView(TypedDict):
     autoDetectedFilipaSalary: float
     filipaSalarySource: Literal["manual", "auto", "none"]
     joaoSalary: float
-    totalsByCategory: dict[str, float]  # spending per category, fixed expenses included (dashboard.UNCATEGORIZED_FIXED: no category yet)
+    totalsByCategory: dict[str, float]  # spending per category, net of refunds, fixed expenses included (dashboard.UNCATEGORIZED_FIXED: no category yet)
+    fixedByCategory: dict[str, float]  # the fixed-expense part of each category's total
     totalExpenses: float  # spending from transactions only; fixed expenses are fixedExpensesTotal
     fixedExpensesTotal: float
     savingsGoalTarget: float
@@ -163,6 +165,9 @@ class DashboardDoc(TypedDict, total=False):
     needsReviewCount: int  # transactions without a category yet
     pendingCount: int  # card payments not settled yet (included in the totals)
     views: dict[str, DashboardView]  # one per display currency
+    # The settings the month was worked out with (salaries, fixed expenses,
+    # savings goal); kept once the month is over (dashboard.py).
+    basis: dict
     updatedAt: int
     # Plus the HOME_CURRENCY view's fields repeated at the top level, for
     # app versions from before `views`.

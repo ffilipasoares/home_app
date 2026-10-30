@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   setDoc,
   onSnapshot,
@@ -47,13 +48,15 @@ export function subscribeAllTransactions(uid: string, cb: (transactions: Transac
 export async function saveTransactionEdit(
   uid: string,
   txId: string,
-  changes: { category?: string; month?: string },
+  changes: { category?: string; month?: string; note?: string },
 ): Promise<void> {
   const patch: Record<string, unknown> = { updatedAt: Date.now() };
   if (changes.category !== undefined) {
     Object.assign(patch, { category: changes.category, needsReview: false, source: "manual-edit" });
   }
   if (changes.month !== undefined) patch.month = changes.month;
+  // An emptied note is removed rather than saved blank.
+  if (changes.note !== undefined) patch.note = changes.note.trim() ? changes.note.trim() : deleteField();
   await setDoc(doc(transactionsCol(uid), txId), patch, { merge: true });
 }
 
@@ -64,6 +67,7 @@ export type ManualTransaction = {
   currency: string;
   /** null = let the categorization agent choose. */
   category: string | null;
+  note?: string;
 };
 
 /**
@@ -88,6 +92,7 @@ export async function addManualTransaction(uid: string, input: ManualTransaction
     needsReview: input.category === null,
     source: input.category === null ? "manual-import" : "manual-edit",
     addedManually: true,
+    ...(input.note?.trim() ? { note: input.note.trim() } : {}),
     createdAt: now,
     updatedAt: now,
   };

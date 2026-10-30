@@ -44,6 +44,8 @@ from decimal import Decimal
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from budget_month import resolve_budget_month
+from category_rules import is_rule_key
 from enable_banking import ASPSP_NAME, Client, EnableBankingError
 from fx import amounts_in
 from merchant import normalize_merchant
@@ -243,6 +245,43 @@ def _existing_docs(tx_col, ids: list[str]) -> dict[str, dict]:
     return found
 
 
+def _apply_learned_categories(db, user_ref, txs: list[Transaction]) -> int:
+    """Gives new transactions from a merchant you've confirmed before its
+    learned category straight away, so they're saved categorized in one
+    write instead of each waking the agent's trigger (main.py) only to find
+    the same rule. Unknown merchants are left for the agent. Returns how
+    many were categorized."""
+    waiting = [tx for tx in txs if tx.get("needsReview") and not tx.get("internalTransfer") and is_rule_key(tx["merchantNormalized"])]
+    if not waiting:
+        return 0
+    categories = (user_ref.collection("settings").document("categories").get().to_dict() or {}).get("categories", [])
+    special = {c["id"]: c.get("special") for c in categories}
+    rules_col = user_ref.collection("categoryRules")
+    keys = sorted({tx["merchantNormalized"] for tx in waiting})
+    learned: dict[str, str] = {}
+    for i in range(0, len(keys), _GET_ALL_CHUNK):
+        for snap in db.get_all([rules_col.document(k) for k in keys[i : i + _GET_ALL_CHUNK]]):
+            if snap.exists:
+                learned[snap.id] = (snap.to_dict() or {}).get("category")
+    done = 0
+    for tx in waiting:
+        category = learned.get(tx["merchantNormalized"])
+        # Only a category that still exists in Settings (main.py applies the same rule).
+        if category not in special:
+            continue
+        tx.update(
+            {
+                "category": category,
+                "needsReview": False,
+                "source": "auto",
+                "confidence": 1,
+                "month": resolve_budget_month(tx["date"], tx["month"], special[category]),
+            }
+        )
+        done += 1
+    return done
+
+
 def sync_account(uid: str, key: str, client: Client, full_history: bool = False) -> int:
     """Imports new transactions (settled and pending) for one account and
     brings pending ones up to date. Returns how many new ones were written. Bank errors are recorded on the account doc (and, when
@@ -328,6 +367,7 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
         # transaction's own date's rate (fx.py caches one lookup per
         # currency and date). Any that fails is filled in later by main.py.
         tx["amountIn"] = amounts_in(tx["amount"], tx["currency"], tx["date"])
+    _apply_learned_categories(db, user_ref, new)
 
     writes = (
         [("set", tx["id"], tx) for tx in new]

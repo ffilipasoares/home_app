@@ -9,8 +9,8 @@ import { useSelectedMonth } from "../lib/selectedMonth";
 import { currentMonth, formatMonth, formatShortDate, shiftMonth, todayIso } from "../lib/month";
 import { formatMoney } from "../lib/format";
 import { ACCENT, MUTED, categoryColors } from "../lib/chartColors";
-import { spendOf } from "../lib/spending";
-import { daysSinceMonthStart, projectMonth } from "../lib/projection";
+import { netSpendOf } from "../lib/spending";
+import { daysSinceMonthStart, fixedByCategoryOf, projectMonth, projectionNote } from "../lib/projection";
 import { PageHeader } from "../components/ui/PageHeader";
 import { SectionHeader } from "../components/ui/ValueRow";
 import { MonthSwitcher } from "../components/MonthSwitcher";
@@ -34,7 +34,7 @@ function cumulative(transactions: Transaction[], month: string, upToDay: number,
   const perDay = new Array<number>(upToDay).fill(0);
   for (const tx of transactions) {
     const amount = spend(tx);
-    if (!amount) continue;
+    if (!amount) continue; // refunds are negative and lower the day's total
     // A transaction counted in this month but dated outside it sits on its first or last day.
     const day = tx.date.slice(0, 7) < month ? 1 : tx.date.slice(0, 7) > month ? upToDay : Number(tx.date.slice(8, 10));
     if (day >= 1 && day <= upToDay) perDay[day - 1] += amount;
@@ -114,11 +114,10 @@ export function Analysis() {
   }
 
   // Projection, exactly as on the Dashboard's Estimated savings card.
-  const fixedSpending = (settings?.fixedExpenses ?? []).filter((f) => categoryById(f.category ?? "")?.special !== "savings");
-  const fixedIds = new Set(fixedSpending.map((f) => (f.category && categoryById(f.category) ? f.category : UNCATEGORIZED_FIXED)));
+  const fixedParts = view ? fixedByCategoryOf(view, settings?.fixedExpenses ?? [], categories) : {};
   const income = view ? view.filipaSalary + view.joaoSalary : 0;
   const days = daysSinceMonthStart(month);
-  const projection = projectMonth(byCategory, fixedIds, income, days);
+  const projection = projectMonth(byCategory, fixedParts, income, days);
   const projecting = month === currentMonth() && days <= 29;
   const parts: Part[] = [
     ...[...projection.rows]
@@ -128,7 +127,7 @@ export function Analysis() {
         label: labelOf(r.id),
         amount: r.estimate,
         color: colorOf(r.id),
-        note: projecting ? (r.fixed ? "Fixed, as is" : `${fmt(r.spent)} so far`) : undefined,
+        note: projecting ? projectionNote(r, fmt) : undefined,
       })),
     {
       id: "_savings",
@@ -141,7 +140,8 @@ export function Analysis() {
   ];
 
   // Pace: spending added up by day, this month against last month (fixed bills left out).
-  const spend = (tx: Transaction) => spendOf(tx, categories, currency);
+  // Net per transaction: a refund lowers the running total on its day.
+  const spend = (tx: Transaction) => netSpendOf(tx, categories, currency);
   const today = todayIso();
   const monthDays = daysIn(month);
   const upTo = month === currentMonth() ? Number(today.slice(8, 10)) : monthDays;
@@ -269,6 +269,7 @@ export function Analysis() {
                         <span className="block truncate text-[15px] font-medium">{tx.merchantRaw}</span>
                         <span className="block truncate text-[13px] text-muted">
                           {formatShortDate(tx.date)} · {labelOf(tx.category ?? "")}
+                          {tx.note && <> · {tx.note}</>}
                         </span>
                       </span>
                       <span className="shrink-0 text-[15px] font-semibold tabular-nums">{fmt(amount)}</span>

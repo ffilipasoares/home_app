@@ -52,7 +52,10 @@ export function TransactionRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-medium text-ink">{tx.merchantRaw}</span>
         <span className="mt-0.5 flex items-center gap-1.5 overflow-hidden text-[13px] text-muted">
-          <span className="truncate">{categoryState(tx, category)}</span>
+          <span className="truncate">
+            {categoryState(tx, category)}
+            {tx.note && <> · {tx.note}</>}
+          </span>
           {tx.needsReview && !!tx.category && !tx.internalTransfer && <Tag tone="warning">Confirm</Tag>}
           {unsure && <Tag tone="warning">AI not sure</Tag>}
           {tx.pending && <Tag>Pending</Tag>}

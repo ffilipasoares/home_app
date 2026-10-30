@@ -288,6 +288,7 @@ python3 scripts/test_bank_sync.py
 python3 scripts/test_fixed_expenses.py   # fixed expenses' categories on the Dashboard
 python3 scripts/test_categories.py       # the AI uses the categories in Settings
 python3 scripts/test_sync_limit.py       # Sync now: 2 a day
+python3 scripts/test_review_fixes.py     # refunds, projection split, closed months, learned rules
 ```
 
 `scripts/test_enable_banking.py` talks to the real Enable Banking API

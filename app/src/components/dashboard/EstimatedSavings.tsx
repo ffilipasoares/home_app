@@ -4,14 +4,14 @@ import { ChevronDownIcon } from "lucide-react";
 import { CategoryIcon } from "../CategoryIcon";
 import { SectionHeader } from "../ui/ValueRow";
 import { formatMoney } from "../../lib/format";
-import { MONTH_DAYS, daysSinceMonthStart, projectMonth } from "../../lib/projection";
+import { MONTH_DAYS, daysSinceMonthStart, projectMonth, projectionNote } from "../../lib/projection";
 import type { CategoryDef } from "../../types";
 
 const pct = (share: number) => `${Math.round(share * 100)}%`;
 
 export function EstimatedSavings({
   spentByCategory,
-  fixedCategoryIds,
+  fixedByCategory,
   income,
   month,
   currency,
@@ -19,7 +19,7 @@ export function EstimatedSavings({
   categoryLabel,
 }: {
   spentByCategory: [string, number][];
-  fixedCategoryIds: Set<string>;
+  fixedByCategory: Record<string, number>;
   income: number;
   month: string;
   currency: string;
@@ -27,7 +27,7 @@ export function EstimatedSavings({
   categoryLabel: (id: string) => string;
 }) {
   const days = daysSinceMonthStart(month);
-  const { rows, total, savings, savingsShare } = projectMonth(spentByCategory, fixedCategoryIds, income, days);
+  const { rows, total, savings, savingsShare } = projectMonth(spentByCategory, fixedByCategory, income, days);
   const fmt = (n: number) => formatMoney(n, currency);
   const sorted = [...rows].sort((a, b) => b.estimate - a.estimate);
   // The per-category breakdown stays folded away until asked for.
@@ -41,7 +41,7 @@ export function EstimatedSavings({
         title="Estimated savings"
         note={
           days <= MONTH_DAYS
-            ? `Spending so far projected to a ${MONTH_DAYS}-day month (day ${days}); categories with fixed expenses count as they are.`
+            ? `Spending so far projected to a ${MONTH_DAYS}-day month (day ${days}); fixed expenses count as they are.`
             : "The month is complete, so these are the actual amounts."
         }
       />
@@ -89,7 +89,7 @@ export function EstimatedSavings({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-medium">{categoryLabel(r.id)}</span>
                   <span className="block truncate text-[13px] text-muted">
-                    {r.fixed ? "Fixed, not projected" : `${fmt(r.spent)} so far`}
+                    {projectionNote(r, fmt)}
                   </span>
                 </span>
                 <span className="shrink-0 text-right">

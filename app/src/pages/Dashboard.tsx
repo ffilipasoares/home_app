@@ -17,8 +17,27 @@ import { MoneyLeftHero } from "../components/dashboard/MoneyLeftHero";
 import { IncomeAllocation } from "../components/dashboard/IncomeAllocation";
 import { EstimatedSavings } from "../components/dashboard/EstimatedSavings";
 import { viewFor } from "../lib/dashboardView";
+import { subscribeBankAccounts } from "../lib/bank";
+import { fixedByCategoryOf } from "../lib/projection";
 import { ENTRY_CURRENCY, UNCATEGORIZED_FIXED } from "../types";
-import type { CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
+import type { AccountLink, CategoryDef, DashboardDoc, DashboardView, DisplayCurrency, UserSettings } from "../types";
+
+const WARN_BEFORE_MS = 7 * 86_400_000;
+
+/**
+ * A line for the top of the Dashboard when the bank sync is about to stop
+ * (access ends within a week) or has stopped (reconnect needed), so it's
+ * seen without opening Settings. Null when all is well.
+ */
+function bankAccessWarning(accounts: AccountLink[]): string | null {
+  const linked = accounts.filter((a) => a.provider === "enablebanking" && a.status !== "disconnected");
+  if (linked.some((a) => a.status === "reconnect-needed")) return "Revolut needs reconnecting: syncing has stopped";
+  const ending = linked
+    .map((a) => a.consentExpiresAt)
+    .filter((t): t is number => typeof t === "number" && t - Date.now() < WARN_BEFORE_MS)
+    .sort((a, b) => a - b)[0];
+  return ending ? `Revolut access ends on ${formatShortDate(ending)}: reconnect in Settings` : null;
+}
 
 const FILIPA_SOURCE: Record<DashboardView["filipaSalarySource"], string> = {
   manual: "Fixed amount",
@@ -39,6 +58,9 @@ export function Dashboard() {
   useEffect(() => subscribeDashboard(uid, month, setDashboard), [uid, month]);
   useEffect(() => subscribeCategories(uid, setCategories), [uid]);
   useEffect(() => subscribeUserSettings(uid, setSettings), [uid]);
+  const [accounts, setAccounts] = useState<AccountLink[]>([]);
+  useEffect(() => subscribeBankAccounts(uid, setAccounts), [uid]);
+  const bankWarning = bankAccessWarning(accounts);
 
   // The app currency, chosen in Settings: every figure here is shown in it.
   const currency: DisplayCurrency = settings?.displayCurrency ?? ENTRY_CURRENCY;
@@ -79,8 +101,18 @@ export function Dashboard() {
       </PageHeader>
 
       <div className="space-y-10 px-5 pb-8">
-        {Boolean(dashboard?.needsReviewCount || view?.unconvertedCount || view?.missingRate) && (
+        {Boolean(bankWarning || dashboard?.needsReviewCount || view?.unconvertedCount || view?.missingRate) && (
           <div className="space-y-2">
+            {bankWarning && (
+              <Link
+                to="/settings"
+                className="flex items-center gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm font-medium transition-colors hover:bg-warning/15"
+              >
+                <AlertTriangleIcon className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                <span className="flex-1">{bankWarning}</span>
+                <ChevronRightIcon className="h-4 w-4 text-subtle" aria-hidden="true" />
+              </Link>
+            )}
             {dashboard && dashboard.needsReviewCount > 0 && (
               <Link
                 to="/transactions"
@@ -279,9 +311,7 @@ export function Dashboard() {
             {month === currentMonth() && (
               <EstimatedSavings
                 spentByCategory={byCategory}
-                fixedCategoryIds={
-                  new Set(fixedSpending.map((f) => (f.category && categoryById(f.category) ? f.category : UNCATEGORIZED_FIXED)))
-                }
+                fixedByCategory={fixedByCategoryOf(view, settings?.fixedExpenses ?? [], categories)}
                 income={totals.income}
                 month={month}
                 currency={currency}
