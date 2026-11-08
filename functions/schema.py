@@ -114,6 +114,10 @@ class Transaction(TypedDict, total=False):
     # False counts a move between your own accounts after all. Absent: the
     # default (not counted only if internalTransfer). See dashboard.not_counted.
     ignored: bool
+    # Money back from someone (a friend's share of a dinner) linked to the
+    # expense it pays back: it takes that expense's category and month, so
+    # it reduces the right category, and teaches no rule from the name.
+    paysBack: str  # the expense's transaction id
     pending: bool  # a card payment the bank hasn't settled yet; updated or removed by the next sync
     createdAt: int
     updatedAt: int

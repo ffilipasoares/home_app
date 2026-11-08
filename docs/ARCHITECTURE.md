@@ -507,6 +507,15 @@ after Phase 0 testing:
   so a €40 dinner with €20 paid back counts as €20. A category never goes
   below zero: one with more back than out simply drops out. Incoming money
   that isn't a refund belongs in an income category instead.
+- **Paybacks** (decided by the user): money back from a friend for a
+  shared expense can be linked to that expense ("Pays back…" on the
+  transaction, `paysBack: <expense id>`). It then takes the expense's
+  category and month, so it reduces the right category in the right month,
+  and teaches no learned rule from the friend's name. If the expense's
+  category or month changes later, its paybacks follow
+  (`main._sync_paybacks`); if it's deleted, they're unlinked and keep their
+  category. The expense's sheet shows how much was paid back and what it
+  really cost.
 - **Closed months keep their settings** (decided in review): each
   dashboard stores the fixed expenses, savings goal and salaries it was
   computed with (`basis`). Once a month is over, recomputing it (a late

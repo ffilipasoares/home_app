@@ -350,8 +350,9 @@ def sync_account(uid: str, key: str, client: Client, full_history: bool = False)
             "updatedAt": now_ms,
         }
         # Follow a date change into another month, unless it was moved by
-        # hand or by the salary rule (month no longer matches its old date).
-        if old.get("month") == (old.get("date") or "")[:7]:
+        # hand or by the salary rule (month no longer matches its old date),
+        # or it's a payback, which stays in its expense's month.
+        if old.get("month") == (old.get("date") or "")[:7] and not old.get("paysBack"):
             patch["month"] = tx["date"][:7]
         updates[tx["id"]] = patch
 

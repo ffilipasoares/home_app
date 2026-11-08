@@ -127,6 +127,11 @@ export type Transaction = {
    * accounts after all. Absent: the default (see isNotCounted).
    */
   ignored?: boolean;
+  /**
+   * Money back from someone, linked to the expense it pays back (its id):
+   * it takes that expense's category and month, so it reduces the right one.
+   */
+  paysBack?: string;
   createdAt: number;
   updatedAt: number;
 };

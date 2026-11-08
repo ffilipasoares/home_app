@@ -227,6 +227,15 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
 
     category_changed = after is not None and (before or {}).get("category") != after.get("category")
 
+    # An expense someone paid you back for: keep the paybacks in its
+    # category and month (or unlink them if it's gone).
+    if (
+        before
+        and (before.get("amount") or 0) < 0
+        and (after is None or any(before.get(k) != after.get(k) for k in ("category", "month")))
+    ):
+        _sync_paybacks(uid, tx_id, after)
+
     if after and after.get("source") == "manual-edit" and after.get("category"):
         if category_changed:
             categories = _load_categories(uid)
@@ -238,8 +247,10 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
                 month = new_month  # so this invocation's own recompute below already uses it
 
             # A category you chose teaches the cache, unless the name is too
-            # generic to mean one merchant (category_rules.is_rule_key).
-            if is_rule_key(after.get("merchantNormalized", "")):
+            # generic to mean one merchant (category_rules.is_rule_key) or
+            # it's a payback, whose category comes from the expense, not
+            # from who sent it.
+            if is_rule_key(after.get("merchantNormalized", "")) and not after.get("paysBack"):
                 firestore.client().collection("users").document(uid).collection("categoryRules").document(
                     after["merchantNormalized"]
                 ).set(
@@ -271,6 +282,22 @@ def on_transaction_write(event: firestore_fn.Event[firestore_fn.Change]) -> None
     before_month = (before or {}).get("month")
     if before_month and before_month != month:
         recompute_month(uid, before_month)
+
+
+def _sync_paybacks(uid: str, tx_id: str, expense: dict | None) -> None:
+    """Moves the paybacks linked to an expense (paysBack == tx_id) to its
+    new category and month; if the expense was deleted, unlinks them (they
+    keep the category they had)."""
+    tx_col = firestore.client().collection("users").document(uid).collection("transactions")
+    now_ms = int(time.time() * 1000)
+    for snap in tx_col.where(filter=FieldFilter("paysBack", "==", tx_id)).stream():
+        payback = snap.to_dict() or {}
+        if expense is None:
+            patch: dict = {"paysBack": DELETE_FIELD}
+        else:
+            patch = {k: expense[k] for k in ("category", "month") if expense.get(k) and payback.get(k) != expense[k]}
+        if patch:
+            snap.reference.update({**patch, "updatedAt": now_ms})
 
 
 # --- Fixed monthly expenses ---------------------------------------------------

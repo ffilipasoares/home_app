@@ -48,7 +48,15 @@ export function subscribeAllTransactions(uid: string, cb: (transactions: Transac
 export async function saveTransactionEdit(
   uid: string,
   txId: string,
-  changes: { category?: string; month?: string; note?: string; notCounted?: boolean; internalTransfer?: boolean },
+  changes: {
+    category?: string;
+    month?: string;
+    note?: string;
+    notCounted?: boolean;
+    internalTransfer?: boolean;
+    /** The expense this pays back; null removes the link. */
+    paysBack?: string | null;
+  },
 ): Promise<void> {
   const patch: Record<string, unknown> = { updatedAt: Date.now() };
   if (changes.category !== undefined) {
@@ -57,6 +65,7 @@ export async function saveTransactionEdit(
   if (changes.month !== undefined) patch.month = changes.month;
   // An emptied note is removed rather than saved blank.
   if (changes.note !== undefined) patch.note = changes.note.trim() ? changes.note.trim() : deleteField();
+  if (changes.paysBack !== undefined) patch.paysBack = changes.paysBack ?? deleteField();
   // "Don't count this": stored only when it differs from the default (a move
   // between your own accounts isn't counted, anything else is).
   if (changes.notCounted !== undefined) {

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link2Icon, SearchIcon, XIcon } from "lucide-react";
 import { BottomSheet, SheetBody, SheetFooter } from "../ui/BottomSheet";
 import { Button } from "../ui/Button";
 import { AmountField, ChipPicker, FieldError, FieldLabel, Toggle } from "../ui/fields";
@@ -8,9 +9,15 @@ import { CategoryIcon } from "../CategoryIcon";
 import { AI_SURE_THRESHOLD, isNotCounted } from "../../lib/transactionState";
 import { parseAmount } from "../../lib/amount";
 import { formatCurrency, formatMoney } from "../../lib/format";
-import { formatShortDate, todayIso } from "../../lib/month";
+import { formatMonth, formatShortDate, todayIso } from "../../lib/month";
+import { paidBackFor, paybackCandidates } from "../../lib/paybacks";
 import { amountShown } from "../../lib/transactionFilters";
-import { addManualTransaction, deleteTransaction, saveTransactionEdit } from "../../lib/transactions";
+import {
+  addManualTransaction,
+  deleteTransaction,
+  saveTransactionEdit,
+  subscribeAllTransactions,
+} from "../../lib/transactions";
 import type { CategoryDef, DisplayCurrency, Transaction } from "../../types";
 
 type Props = {
@@ -56,9 +63,23 @@ function EditForm({
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const [note, setNote] = useState(tx.note ?? "");
   const [notCounted, setNotCounted] = useState(isNotCounted(tx));
+  const [paysBack, setPaysBack] = useState(tx.paysBack ?? "");
+  const [all, setAll] = useState<Transaction[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string>();
+
+  // Every transaction, for linking a payback to its expense and showing
+  // what an expense was paid back.
+  useEffect(() => subscribeAllTransactions(uid, setAll), [uid]);
+  const canPayBack = tx.amount > 0 && !tx.internalTransfer;
+  // A linked payback takes the expense's category and month.
+  const expense = paysBack ? all?.find((t) => t.id === paysBack) : undefined;
+  const paysBackDirty = paysBack !== (tx.paysBack ?? "");
+  const linkCategory =
+    expense?.category && (paysBackDirty || expense.category !== tx.category) ? expense.category : undefined;
+  const linkMonth = expense && expense.month !== tx.month ? expense.month : undefined;
+  const paidBack = tx.amount < 0 && all ? paidBackFor(tx, all, currency) : null;
 
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
@@ -71,7 +92,10 @@ function EditForm({
   // not counted anyway.
   const saveCategory = !!category && (categoryDirty || (tx.needsReview && !notCounted));
   const canSave =
-    (saveCategory || monthDirty || noteDirty || countingDirty) && !needsCategory && /^\d{4}-\d{2}$/.test(budgetMonth);
+    (saveCategory || monthDirty || noteDirty || countingDirty || paysBackDirty) &&
+    (!!expense || !needsCategory) &&
+    (!paysBack || !!expense) &&
+    /^\d{4}-\d{2}$/.test(budgetMonth);
   const confirmOnly =
     tx.needsReview && !!tx.category && !notCounted && !categoryDirty && !monthDirty && !noteDirty && !countingDirty;
   const current = categories.find((c) => c.id === tx.category);
@@ -133,19 +157,50 @@ function EditForm({
           </p>
         )}
 
-        <ChipPicker legend="Category" value={category} onChange={setCategory} options={categories} />
+        {paidBack && paidBack.total > 0 && (
+          <p className="text-[13px] text-muted">
+            {formatMoney(paidBack.total, currency)} paid back (
+            {paidBack.paybacks.map((p) => p.merchantRaw).join(", ")}), so it cost you{" "}
+            <span className="font-medium text-ink">
+              {formatMoney(Math.max(0, -(shown ?? tx.amount) - paidBack.total), currency)}
+            </span>
+            .
+          </p>
+        )}
 
-        <div>
-          <FieldLabel htmlFor="tx-month">Counts toward</FieldLabel>
-          <input
-            id="tx-month"
-            type="month"
-            value={budgetMonth}
-            onChange={(e) => setBudgetMonth(e.target.value)}
-            className={`${FIELD} mt-2`}
+        {canPayBack && all && (
+          <PaysBackField
+            payback={tx}
+            expense={expense}
+            all={all}
+            categories={categories}
+            currency={currency}
+            onChange={setPaysBack}
           />
-          <p className="mt-2 text-[13px] text-muted">The month this transaction is counted in on the Dashboard.</p>
-        </div>
+        )}
+
+        {expense ? (
+          <p className="text-[13px] text-muted">
+            Counts in {categories.find((c) => c.id === expense.category)?.label ?? expense.category},{" "}
+            {formatMonth(expense.month)}, like the expense it pays back.
+          </p>
+        ) : (
+          <>
+            <ChipPicker legend="Category" value={category} onChange={setCategory} options={categories} />
+
+            <div>
+              <FieldLabel htmlFor="tx-month">Counts toward</FieldLabel>
+              <input
+                id="tx-month"
+                type="month"
+                value={budgetMonth}
+                onChange={(e) => setBudgetMonth(e.target.value)}
+                className={`${FIELD} mt-2`}
+              />
+              <p className="mt-2 text-[13px] text-muted">The month this transaction is counted in on the Dashboard.</p>
+            </div>
+          </>
+        )}
 
         <NoteField value={note} onChange={setNote} />
 
@@ -191,8 +246,10 @@ function EditForm({
               onClick={() =>
                 run(() =>
                   saveTransactionEdit(uid, tx.id, {
-                    category: saveCategory ? category : undefined,
-                    month: monthDirty ? budgetMonth : undefined,
+                    ...(expense
+                      ? { category: linkCategory, month: linkMonth }
+                      : { category: saveCategory ? category : undefined, month: monthDirty ? budgetMonth : undefined }),
+                    paysBack: paysBackDirty ? paysBack || null : undefined,
                     note: noteDirty ? note : undefined,
                     notCounted: countingDirty ? notCounted : undefined,
                     internalTransfer: tx.internalTransfer,
@@ -345,6 +402,117 @@ function NoteField({ value, onChange }: { value: string; onChange: (note: string
         onChange={(e) => onChange(e.target.value)}
         className={`${FIELD} mt-2`}
       />
+    </div>
+  );
+}
+
+/**
+ * Links money back from someone (a friend's share of a dinner) to the
+ * expense it pays back, picked from recent spending.
+ */
+function PaysBackField({
+  payback,
+  expense,
+  all,
+  categories,
+  currency,
+  onChange,
+}: {
+  payback: Transaction;
+  expense: Transaction | undefined;
+  all: Transaction[];
+  categories: CategoryDef[];
+  currency: DisplayCurrency;
+  onChange: (expenseId: string) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [search, setSearch] = useState("");
+  const categoryOf = (tx: Transaction) => categories.find((c) => c.id === tx.category);
+
+  const row = (tx: Transaction) => (
+    <>
+      <CategoryIcon category={categoryOf(tx)} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-medium">{tx.merchantRaw}</span>
+        <span className="block truncate text-[13px] text-muted">
+          {formatShortDate(tx.date)} · {categoryOf(tx)?.label ?? tx.category}
+        </span>
+      </span>
+      <span className="shrink-0 text-[15px] font-semibold tabular-nums">
+        {formatMoney(amountShown(tx, currency) ?? tx.amount, currency, { signed: true })}
+      </span>
+    </>
+  );
+
+  if (expense) {
+    return (
+      <div>
+        <FieldLabel>Pays back</FieldLabel>
+        <div className="mt-2 flex items-center gap-3 rounded-xl bg-raised p-3">
+          {row(expense)}
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            aria-label="Remove the link"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-selected hover:text-ink"
+          >
+            <XIcon className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!picking) {
+    return (
+      <div>
+        <Button variant="secondary" fullWidth onClick={() => setPicking(true)}>
+          <Link2Icon className="h-4 w-4" aria-hidden="true" />
+          Pays back an expense…
+        </Button>
+        <p className="mt-2 text-[13px] text-muted">
+          Money back from someone, like a friend&apos;s share of a dinner? Link it to the expense so it reduces that
+          category.
+        </p>
+      </div>
+    );
+  }
+
+  const candidates = paybackCandidates(payback, all, categories, search);
+  return (
+    <div>
+      <FieldLabel htmlFor="payback-search">Which expense does it pay back?</FieldLabel>
+      <div className={`${FIELD} mt-2 flex items-center gap-2`}>
+        <SearchIcon className="h-4 w-4 shrink-0 text-subtle" aria-hidden="true" />
+        <input
+          id="payback-search"
+          type="search"
+          value={search}
+          placeholder="Search name or amount"
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-transparent text-[15px] text-ink placeholder:text-subtle focus:outline-none"
+        />
+      </div>
+      {candidates.length === 0 ? (
+        <p className="mt-2 text-[13px] text-muted">No matching expense in the last four months.</p>
+      ) : (
+        <ul className="mt-2 max-h-72 divide-y divide-line overflow-y-auto rounded-xl bg-raised">
+          {candidates.map((tx) => (
+            <li key={tx.id}>
+              <button
+                type="button"
+                onClick={() => onChange(tx.id)}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-selected"
+              >
+                {row(tx)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" onClick={() => setPicking(false)} className="mt-2 text-[13px] font-medium text-muted">
+        Cancel
+      </button>
     </div>
   );
 }

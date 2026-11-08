@@ -63,7 +63,12 @@ class DocRef:
         self.db.store[self.path] = {**(self.db.store.get(self.path) or {}), **data} if merge else dict(data)
 
     def update(self, data):
-        self.db.store[self.path].update(data)
+        doc = self.db.store[self.path]
+        for k, v in data.items():
+            if v is main.DELETE_FIELD:
+                doc.pop(k, None)
+            else:
+                doc[k] = v
 
 
 class ColRef:
@@ -271,6 +276,37 @@ check("...but is once it counts again", main._awaiting_auto_category(new_tx("SHO
 check("your choice wins over the sync's: not_counted",
       dashboard.not_counted({"internalTransfer": True}) and not dashboard.not_counted({"internalTransfer": True, "ignored": False})
       and dashboard.not_counted({"ignored": True}) and not dashboard.not_counted({}))
+
+# --- Paybacks linked to their expense ----------------------------------------------
+db = FakeDB()
+main.firestore.client = lambda: db
+TX = f"{USER}/transactions"
+dinner = {**new_tx("CERVEJARIA RAMIRO", date="2026-10-12"), "amount": -80.0, "category": "dining", "needsReview": False}
+payback = {**new_tx("RITA SILVA", date="2026-11-02"), "amount": 20.0, "category": "dining", "month": "2026-10",
+           "needsReview": False, "source": "manual-edit", "paysBack": "dinner"}
+db.store[f"{TX}/dinner"], db.store[f"{TX}/payback"] = dict(dinner), dict(payback)
+
+
+def fire_on(tx_id, before, after):
+    recomputed.clear()
+    snap = lambda d: SimpleNamespace(to_dict=lambda: dict(d)) if d is not None else None  # noqa: E731
+    event = SimpleNamespace(params={"uid": "u1", "txId": tx_id}, data=SimpleNamespace(before=snap(before), after=snap(after)))
+    main.on_transaction_write.__wrapped__(event)
+
+
+fire_on("payback", {**payback, "category": "others", "paysBack": None}, payback)
+check("linking a payback teaches no rule from the friend's name", f"{USER}/categoryRules/RITA SILVA" not in db.store)
+check("...and recomputes the expense's month", "2026-10" in recomputed)
+moved = {**dinner, "category": "food", "month": "2026-09"}
+db.store[f"{TX}/dinner"] = dict(moved)
+fire_on("dinner", dinner, moved)
+check("changing the expense moves its payback along",
+      db.store[f"{TX}/payback"]["category"] == "food" and db.store[f"{TX}/payback"]["month"] == "2026-09")
+fire_on("dinner", moved, {**moved, "note": "x"})
+check("an edit that keeps category and month leaves the payback alone", db.store[f"{TX}/payback"]["category"] == "food")
+fire_on("dinner", moved, None)
+check("deleting the expense unlinks the payback, which keeps its category",
+      "paysBack" not in db.store[f"{TX}/payback"] and db.store[f"{TX}/payback"]["category"] == "food")
 
 print("\nALL PASSED" if failures == 0 else f"\n{failures} FAILED")
 sys.exit(1 if failures else 0)

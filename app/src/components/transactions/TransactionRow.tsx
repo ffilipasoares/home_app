@@ -62,6 +62,7 @@ export function TransactionRow({
           </span>
           {tx.needsReview && !!tx.category && !isNotCounted(tx) && <Tag tone="warning">Confirm</Tag>}
           {unsure && !isNotCounted(tx) && <Tag tone="warning">AI not sure</Tag>}
+          {tx.paysBack && !isNotCounted(tx) && <Tag>Pays back</Tag>}
           {tx.pending && <Tag>Pending</Tag>}
           {tx.addedManually && <Tag>Added by you</Tag>}
         </span>
