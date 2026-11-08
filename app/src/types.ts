@@ -121,7 +121,11 @@ export type Transaction = {
   aiError?: string;
   /** Your own note on what it was for ("Mum's birthday dinner"); searchable. */
   note?: string;
-  /** You marked it "Don't count this": left out of every total, like internalTransfer. */
+  /**
+   * Your "Don't count this" choice, which wins over internalTransfer: true
+   * leaves it out of every total, false counts a move between your own
+   * accounts after all. Absent: the default (see isNotCounted).
+   */
   ignored?: boolean;
   createdAt: number;
   updatedAt: number;

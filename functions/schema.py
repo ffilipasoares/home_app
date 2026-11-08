@@ -109,8 +109,10 @@ class Transaction(TypedDict, total=False):
     internalTransfer: bool
     addedManually: bool  # entered by hand on the Transactions page, e.g. paid from another account
     note: str  # your own note on what it was for; searchable in the app
-    # Set by you ("Don't count this"): left out of every total, like an
-    # internalTransfer, e.g. money a friend sent to pass on to someone else.
+    # Your "Don't count this" choice, which wins over internalTransfer:
+    # True leaves it out of every total (money that only passes through),
+    # False counts a move between your own accounts after all. Absent: the
+    # default (not counted only if internalTransfer). See dashboard.not_counted.
     ignored: bool
     pending: bool  # a card payment the bank hasn't settled yet; updated or removed by the next sync
     createdAt: int

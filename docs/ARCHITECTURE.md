@@ -545,7 +545,11 @@ after Phase 0 testing:
   total, exactly like a move between your own accounts — for money that
   only passes through (a friend's money to pass on, a deposit paid and
   returned). It stays in the list, marked "not counted"; the AI doesn't
-  categorize it; switching it off counts it again.
+  categorize it; switching it off counts it again. It works the other way
+  too: the switch starts on for a move between your own accounts, and
+  turning it off (`ignored: false`, with a category you pick) counts that
+  one after all. Your choice always wins over the sync's
+  (`dashboard.not_counted`, `isNotCounted` in the app).
 - A transaction can be **deleted** outright (Transactions screen) — the
   Cloud Function trigger fires on delete too and recomputes the month it
   was counted in, so it drops out of every total, not just the visible

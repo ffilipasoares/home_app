@@ -58,6 +58,14 @@ def _basis_from(settings: dict) -> dict:
     return basis
 
 
+def not_counted(tx: dict) -> bool:
+    """Left out of every total: a move between your own accounts (found by
+    the sync), unless you chose otherwise with "Don't count this" (`ignored`),
+    which wins either way. Same rule as the app's isNotCounted."""
+    ignored = tx.get("ignored")
+    return bool(tx.get("internalTransfer")) if ignored is None else bool(ignored)
+
+
 def _current_month() -> str:
     """This month in Lisbon (the household's clock, as the scheduler's)."""
     return datetime.now(ZoneInfo("Europe/Lisbon")).strftime("%Y-%m")
@@ -106,7 +114,7 @@ def recompute_month(uid: str, month: str) -> None:
         # Money moved between the user's own accounts (see bank_sync.py), or
         # a transaction you marked "Don't count this", is neither spending
         # nor income.
-        if tx.get("internalTransfer") or tx.get("ignored"):
+        if not_counted(tx):
             continue
         if tx.get("pending"):
             pending_count += 1  # counted in the totals; the app says how many are pending

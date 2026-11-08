@@ -48,10 +48,8 @@ export function TransactionRow({
       onClick={() => onSelect(tx)}
       className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
     >
-      {tx.internalTransfer ? (
-        <IconTile icon={ArrowLeftRightIcon} color="#71717A" />
-      ) : tx.ignored ? (
-        <IconTile icon={EyeOffIcon} color="#71717A" />
+      {isNotCounted(tx) ? (
+        <IconTile icon={tx.internalTransfer ? ArrowLeftRightIcon : EyeOffIcon} color="#71717A" />
       ) : (
         <CategoryIcon category={category} />
       )}

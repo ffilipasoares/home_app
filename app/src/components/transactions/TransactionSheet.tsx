@@ -5,7 +5,7 @@ import { AmountField, ChipPicker, FieldError, FieldLabel, Toggle } from "../ui/f
 import { FIELD } from "../ui/styles";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { CategoryIcon } from "../CategoryIcon";
-import { AI_SURE_THRESHOLD } from "../../lib/transactionState";
+import { AI_SURE_THRESHOLD, isNotCounted } from "../../lib/transactionState";
 import { parseAmount } from "../../lib/amount";
 import { formatCurrency, formatMoney } from "../../lib/format";
 import { formatShortDate, todayIso } from "../../lib/month";
@@ -55,7 +55,7 @@ function EditForm({
   const [category, setCategory] = useState(tx.category ?? "");
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const [note, setNote] = useState(tx.note ?? "");
-  const [ignored, setIgnored] = useState(!!tx.ignored);
+  const [notCounted, setNotCounted] = useState(isNotCounted(tx));
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string>();
@@ -63,13 +63,17 @@ function EditForm({
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
   const noteDirty = note.trim() !== (tx.note ?? "");
-  const ignoredDirty = ignored !== !!tx.ignored;
+  const countingDirty = notCounted !== isNotCounted(tx);
+  // Counted, it needs a category; one the AI isn't working on (a move
+  // between your accounts you now count) has to be picked here.
+  const needsCategory = !notCounted && !category && !tx.needsReview;
   // Confirming an older AI suggestion counts as a change too, unless it's
   // not counted anyway.
-  const saveCategory = !!category && (categoryDirty || (tx.needsReview && !ignored));
-  const canSave = (saveCategory || monthDirty || noteDirty || ignoredDirty) && /^\d{4}-\d{2}$/.test(budgetMonth);
+  const saveCategory = !!category && (categoryDirty || (tx.needsReview && !notCounted));
+  const canSave =
+    (saveCategory || monthDirty || noteDirty || countingDirty) && !needsCategory && /^\d{4}-\d{2}$/.test(budgetMonth);
   const confirmOnly =
-    tx.needsReview && !!tx.category && !ignored && !categoryDirty && !monthDirty && !noteDirty && !ignoredDirty;
+    tx.needsReview && !!tx.category && !notCounted && !categoryDirty && !monthDirty && !noteDirty && !countingDirty;
   const current = categories.find((c) => c.id === tx.category);
   const shown = amountShown(tx, currency);
   const unsure =
@@ -109,17 +113,12 @@ function EditForm({
           </div>
         </div>
 
-        {tx.internalTransfer && (
-          <p className="text-[13px] text-muted">
-            A move between your own accounts: it isn't counted as spending or income.
-          </p>
-        )}
         {tx.pending && (
           <p className="text-[13px] text-muted">
             Not settled by the bank yet. The amount can still change; the next sync updates it.
           </p>
         )}
-        {!tx.internalTransfer && !ignored && tx.needsReview && (
+        {!notCounted && tx.needsReview && (
           <p className="text-[13px] text-muted">
             {tx.category
               ? "The AI suggested this category. Confirm it or pick another."
@@ -150,14 +149,19 @@ function EditForm({
 
         <NoteField value={note} onChange={setNote} />
 
-        {!tx.internalTransfer && (
+        <div>
           <Toggle
             title="Don't count this"
-            description="Left out of spending, income and every total, like a move between your accounts."
-            checked={ignored}
-            onChange={setIgnored}
+            description={
+              tx.internalTransfer
+                ? "A move between your own accounts, so it's left out of every total. Switch off to count it."
+                : "Left out of spending, income and every total, like a move between your accounts."
+            }
+            checked={notCounted}
+            onChange={setNotCounted}
           />
-        )}
+          {needsCategory && <p className="mt-2 text-[13px] text-warning">Pick a category above to count it.</p>}
+        </div>
 
         {error && <FieldError>{error}</FieldError>}
       </SheetBody>
@@ -190,7 +194,8 @@ function EditForm({
                     category: saveCategory ? category : undefined,
                     month: monthDirty ? budgetMonth : undefined,
                     note: noteDirty ? note : undefined,
-                    ignored: ignoredDirty ? ignored : undefined,
+                    notCounted: countingDirty ? notCounted : undefined,
+                    internalTransfer: tx.internalTransfer,
                   }),
                 )
               }

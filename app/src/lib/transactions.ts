@@ -48,7 +48,7 @@ export function subscribeAllTransactions(uid: string, cb: (transactions: Transac
 export async function saveTransactionEdit(
   uid: string,
   txId: string,
-  changes: { category?: string; month?: string; note?: string; ignored?: boolean },
+  changes: { category?: string; month?: string; note?: string; notCounted?: boolean; internalTransfer?: boolean },
 ): Promise<void> {
   const patch: Record<string, unknown> = { updatedAt: Date.now() };
   if (changes.category !== undefined) {
@@ -57,8 +57,11 @@ export async function saveTransactionEdit(
   if (changes.month !== undefined) patch.month = changes.month;
   // An emptied note is removed rather than saved blank.
   if (changes.note !== undefined) patch.note = changes.note.trim() ? changes.note.trim() : deleteField();
-  // "Don't count this": stored only while it's on.
-  if (changes.ignored !== undefined) patch.ignored = changes.ignored ? true : deleteField();
+  // "Don't count this": stored only when it differs from the default (a move
+  // between your own accounts isn't counted, anything else is).
+  if (changes.notCounted !== undefined) {
+    patch.ignored = changes.notCounted === !!changes.internalTransfer ? deleteField() : changes.notCounted;
+  }
   await setDoc(doc(transactionsCol(uid), txId), patch, { merge: true });
 }
 

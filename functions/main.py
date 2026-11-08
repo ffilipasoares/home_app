@@ -48,7 +48,7 @@ import bank_sync
 from budget_month import resolve_budget_month
 from categorize import CONFIDENCE_THRESHOLD, CategorizationError, categorize_transaction
 from category_rules import find_exact_category_rule, is_rule_key, list_recent_category_rules
-from dashboard import recompute_month
+from dashboard import not_counted, recompute_month
 from enable_banking import Client, EnableBankingError
 from fx import amounts_in, missing_display_currencies
 from merchant import normalize_merchant
@@ -205,8 +205,7 @@ def _awaiting_auto_category(tx: dict) -> bool:
     return (
         tx.get("category") is None
         and bool(tx.get("needsReview"))
-        and not tx.get("internalTransfer")
-        and not tx.get("ignored")  # you said not to count it: nothing to categorize
+        and not not_counted(tx)  # not counted: nothing to categorize
         # A failed attempt records aiError on this same document, which
         # fires the trigger again; don't retry in a loop (the nightly job
         # retries it).
@@ -414,7 +413,7 @@ def _categorize_pending(uid: str, deadline: float, min_age_ms: int = _RETRY_MIN_
         if time.monotonic() > deadline:
             return {"done": done, "failed": failed, "remaining": len(pending) - i, "lastError": last_error}
         tx = doc.to_dict() or {}
-        if tx.get("internalTransfer") or tx.get("ignored"):
+        if not_counted(tx):
             continue
         if tx.get("category"):
             doc.reference.update({"needsReview": False, "updatedAt": now_ms})
