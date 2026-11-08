@@ -540,6 +540,12 @@ after Phase 0 testing:
 - A transaction can carry an optional **note** of your own (up to 200
   characters, set when adding or editing it); it shows under the name and
   the Transactions search matches it. The sync never overwrites it.
+- **Don't count this** (decided by the user): a switch on any transaction
+  (`ignored: true`) leaves it out of spending, income, refunds and every
+  total, exactly like a move between your own accounts — for money that
+  only passes through (a friend's money to pass on, a deposit paid and
+  returned). It stays in the list, marked "not counted"; the AI doesn't
+  categorize it; switching it off counts it again.
 - A transaction can be **deleted** outright (Transactions screen) — the
   Cloud Function trigger fires on delete too and recomputes the month it
   was counted in, so it drops out of every total, not just the visible

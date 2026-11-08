@@ -206,6 +206,7 @@ def _awaiting_auto_category(tx: dict) -> bool:
         tx.get("category") is None
         and bool(tx.get("needsReview"))
         and not tx.get("internalTransfer")
+        and not tx.get("ignored")  # you said not to count it: nothing to categorize
         # A failed attempt records aiError on this same document, which
         # fires the trigger again; don't retry in a loop (the nightly job
         # retries it).
@@ -413,7 +414,7 @@ def _categorize_pending(uid: str, deadline: float, min_age_ms: int = _RETRY_MIN_
         if time.monotonic() > deadline:
             return {"done": done, "failed": failed, "remaining": len(pending) - i, "lastError": last_error}
         tx = doc.to_dict() or {}
-        if tx.get("internalTransfer"):
+        if tx.get("internalTransfer") or tx.get("ignored"):
             continue
         if tx.get("category"):
             doc.reference.update({"needsReview": False, "updatedAt": now_ms})

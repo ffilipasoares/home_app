@@ -1,9 +1,9 @@
-import { ArrowLeftRightIcon } from "lucide-react";
+import { ArrowLeftRightIcon, EyeOffIcon } from "lucide-react";
 import { CategoryIcon } from "../CategoryIcon";
 import { IconTile } from "../ui/IconTile";
 import { amountShown } from "../../lib/transactionFilters";
 import { formatCurrency, formatMoney } from "../../lib/format";
-import { AI_SURE_THRESHOLD, categoryState } from "../../lib/transactionState";
+import { AI_SURE_THRESHOLD, categoryState, isNotCounted } from "../../lib/transactionState";
 import type { CategoryDef, DisplayCurrency, Transaction } from "../../types";
 
 function Tag({ children, tone = "muted" }: { children: string; tone?: "muted" | "warning" }) {
@@ -34,7 +34,7 @@ export function TransactionRow({
   const isInvestment = category?.special === "savings";
   const unsure =
     !!tx.category && tx.source === "auto" && tx.confidence !== undefined && tx.confidence < AI_SURE_THRESHOLD;
-  const amountClass = tx.internalTransfer
+  const amountClass = isNotCounted(tx)
     ? "text-subtle"
     : received
       ? "text-positive"
@@ -48,7 +48,13 @@ export function TransactionRow({
       onClick={() => onSelect(tx)}
       className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
     >
-      {tx.internalTransfer ? <IconTile icon={ArrowLeftRightIcon} color="#71717A" /> : <CategoryIcon category={category} />}
+      {tx.internalTransfer ? (
+        <IconTile icon={ArrowLeftRightIcon} color="#71717A" />
+      ) : tx.ignored ? (
+        <IconTile icon={EyeOffIcon} color="#71717A" />
+      ) : (
+        <CategoryIcon category={category} />
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] font-medium text-ink">{tx.merchantRaw}</span>
         <span className="mt-0.5 flex items-center gap-1.5 overflow-hidden text-[13px] text-muted">
@@ -56,8 +62,8 @@ export function TransactionRow({
             {categoryState(tx, category)}
             {tx.note && <> · {tx.note}</>}
           </span>
-          {tx.needsReview && !!tx.category && !tx.internalTransfer && <Tag tone="warning">Confirm</Tag>}
-          {unsure && <Tag tone="warning">AI not sure</Tag>}
+          {tx.needsReview && !!tx.category && !isNotCounted(tx) && <Tag tone="warning">Confirm</Tag>}
+          {unsure && !isNotCounted(tx) && <Tag tone="warning">AI not sure</Tag>}
           {tx.pending && <Tag>Pending</Tag>}
           {tx.addedManually && <Tag>Added by you</Tag>}
         </span>

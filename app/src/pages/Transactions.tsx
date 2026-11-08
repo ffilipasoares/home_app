@@ -9,6 +9,7 @@ import { useSelectedMonth } from "../lib/selectedMonth";
 import { NO_FILTERS, amountShown, matches, sourceKey, type Filters } from "../lib/transactionFilters";
 import { subscribeBankAccounts } from "../lib/bank";
 import { formatMoney } from "../lib/format";
+import { isNotCounted } from "../lib/transactionState";
 import { formatDayHeading, formatMonth } from "../lib/month";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
@@ -27,7 +28,7 @@ import type { AccountLink, CategoryDef, DisplayCurrency, Transaction } from "../
  * still waiting, and why, if the AI keeps failing.
  */
 function WaitingNote({ transactions }: { transactions: Transaction[] }) {
-  const waiting = transactions.filter((tx) => tx.needsReview && !tx.category && !tx.internalTransfer);
+  const waiting = transactions.filter((tx) => tx.needsReview && !tx.category && !isNotCounted(tx));
   if (waiting.length === 0) return null;
   const error = waiting.find((tx) => tx.aiError)?.aiError;
   return (
@@ -96,8 +97,9 @@ export function Transactions() {
     (filters.source !== "all" ? 1 : 0) +
     (filters.allMonths ? 1 : 0);
 
-  // Totals of what's shown, in the app currency; moves between your own accounts aren't counted.
-  const counted = (tx: Transaction) => (tx.internalTransfer ? undefined : amountShown(tx, currency));
+  // Totals of what's shown, in the app currency; moves between your own
+  // accounts and ones marked "Don't count this" are left out.
+  const counted = (tx: Transaction) => (isNotCounted(tx) ? undefined : amountShown(tx, currency));
   let spent = 0;
   let received = 0;
   for (const tx of visible) {

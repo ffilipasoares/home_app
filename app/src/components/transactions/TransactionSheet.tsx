@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BottomSheet, SheetBody, SheetFooter } from "../ui/BottomSheet";
 import { Button } from "../ui/Button";
-import { AmountField, ChipPicker, FieldError, FieldLabel } from "../ui/fields";
+import { AmountField, ChipPicker, FieldError, FieldLabel, Toggle } from "../ui/fields";
 import { FIELD } from "../ui/styles";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { CategoryIcon } from "../CategoryIcon";
@@ -55,6 +55,7 @@ function EditForm({
   const [category, setCategory] = useState(tx.category ?? "");
   const [budgetMonth, setBudgetMonth] = useState(tx.month);
   const [note, setNote] = useState(tx.note ?? "");
+  const [ignored, setIgnored] = useState(!!tx.ignored);
   const [busy, setBusy] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string>();
@@ -62,10 +63,13 @@ function EditForm({
   const categoryDirty = category !== (tx.category ?? "");
   const monthDirty = budgetMonth !== tx.month;
   const noteDirty = note.trim() !== (tx.note ?? "");
-  // Confirming an older AI suggestion counts as a change too.
-  const saveCategory = !!category && (categoryDirty || tx.needsReview);
-  const canSave = (saveCategory || monthDirty || noteDirty) && /^\d{4}-\d{2}$/.test(budgetMonth);
-  const confirmOnly = tx.needsReview && !!tx.category && !categoryDirty && !monthDirty && !noteDirty;
+  const ignoredDirty = ignored !== !!tx.ignored;
+  // Confirming an older AI suggestion counts as a change too, unless it's
+  // not counted anyway.
+  const saveCategory = !!category && (categoryDirty || (tx.needsReview && !ignored));
+  const canSave = (saveCategory || monthDirty || noteDirty || ignoredDirty) && /^\d{4}-\d{2}$/.test(budgetMonth);
+  const confirmOnly =
+    tx.needsReview && !!tx.category && !ignored && !categoryDirty && !monthDirty && !noteDirty && !ignoredDirty;
   const current = categories.find((c) => c.id === tx.category);
   const shown = amountShown(tx, currency);
   const unsure =
@@ -115,7 +119,7 @@ function EditForm({
             Not settled by the bank yet. The amount can still change; the next sync updates it.
           </p>
         )}
-        {!tx.internalTransfer && tx.needsReview && (
+        {!tx.internalTransfer && !ignored && tx.needsReview && (
           <p className="text-[13px] text-muted">
             {tx.category
               ? "The AI suggested this category. Confirm it or pick another."
@@ -145,6 +149,15 @@ function EditForm({
         </div>
 
         <NoteField value={note} onChange={setNote} />
+
+        {!tx.internalTransfer && (
+          <Toggle
+            title="Don't count this"
+            description="Left out of spending, income and every total, like a move between your accounts."
+            checked={ignored}
+            onChange={setIgnored}
+          />
+        )}
 
         {error && <FieldError>{error}</FieldError>}
       </SheetBody>
@@ -177,6 +190,7 @@ function EditForm({
                     category: saveCategory ? category : undefined,
                     month: monthDirty ? budgetMonth : undefined,
                     note: noteDirty ? note : undefined,
+                    ignored: ignoredDirty ? ignored : undefined,
                   }),
                 )
               }

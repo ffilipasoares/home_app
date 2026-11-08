@@ -48,7 +48,7 @@ export function subscribeAllTransactions(uid: string, cb: (transactions: Transac
 export async function saveTransactionEdit(
   uid: string,
   txId: string,
-  changes: { category?: string; month?: string; note?: string },
+  changes: { category?: string; month?: string; note?: string; ignored?: boolean },
 ): Promise<void> {
   const patch: Record<string, unknown> = { updatedAt: Date.now() };
   if (changes.category !== undefined) {
@@ -57,6 +57,8 @@ export async function saveTransactionEdit(
   if (changes.month !== undefined) patch.month = changes.month;
   // An emptied note is removed rather than saved blank.
   if (changes.note !== undefined) patch.note = changes.note.trim() ? changes.note.trim() : deleteField();
+  // "Don't count this": stored only while it's on.
+  if (changes.ignored !== undefined) patch.ignored = changes.ignored ? true : deleteField();
   await setDoc(doc(transactionsCol(uid), txId), patch, { merge: true });
 }
 

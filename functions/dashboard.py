@@ -103,12 +103,13 @@ def recompute_month(uid: str, month: str) -> None:
     pending_count = 0
     for doc in tx_docs:
         tx = doc.to_dict()
-        if tx.get("pending") and not tx.get("internalTransfer"):
-            pending_count += 1  # counted in the totals; the app says how many are pending
-        # Money moved between the user's own accounts is neither spending
-        # nor income (see bank_sync.py).
-        if tx.get("internalTransfer"):
+        # Money moved between the user's own accounts (see bank_sync.py), or
+        # a transaction you marked "Don't count this", is neither spending
+        # nor income.
+        if tx.get("internalTransfer") or tx.get("ignored"):
             continue
+        if tx.get("pending"):
+            pending_count += 1  # counted in the totals; the app says how many are pending
         if tx.get("needsReview") or not tx.get("category"):
             needs_review_count += 1
             continue

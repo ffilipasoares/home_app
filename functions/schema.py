@@ -109,6 +109,9 @@ class Transaction(TypedDict, total=False):
     internalTransfer: bool
     addedManually: bool  # entered by hand on the Transactions page, e.g. paid from another account
     note: str  # your own note on what it was for; searchable in the app
+    # Set by you ("Don't count this"): left out of every total, like an
+    # internalTransfer, e.g. money a friend sent to pass on to someone else.
+    ignored: bool
     pending: bool  # a card payment the bank hasn't settled yet; updated or removed by the next sync
     createdAt: int
     updatedAt: int

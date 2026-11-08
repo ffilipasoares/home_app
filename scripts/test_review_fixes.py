@@ -245,5 +245,26 @@ generic = {**edited, "merchantNormalized": "MBWAY"}
 fire({**generic, "category": "needs"}, generic)
 check("a generic name is never learned", f"{USER}/categoryRules/MBWAY" not in db.store)
 
+# --- "Don't count this" ------------------------------------------------------------
+db = FakeDB()
+dashboard.firestore.client = lambda: db
+db.store[USER] = {"fixedExpenses": [], "savingsGoal": {"type": "fixed", "value": 0}, "filipaSalaryAmount": 3000}
+db.store[f"{USER}/settings/categories"] = {"categories": CATEGORIES}
+for i, tx in enumerate([
+    {**t("food", -40.0), "month": "2026-10"},
+    {**t("food", 500.0), "month": "2026-10", "ignored": True},  # a friend's money to pass on
+    {**t("food", -500.0), "month": "2026-10", "ignored": True, "pending": True},
+    {**t("salary", 900.0), "month": "2026-10", "ignored": True},
+    {"amount": -25.0, "amountIn": {"EUR": -25.0}, "date": "2026-10-06", "month": "2026-10", "needsReview": True, "category": None, "ignored": True},
+]):
+    db.store[f"{USER}/transactions/x{i}"] = tx
+dashboard.recompute_month("u1", "2026-10")
+d = db.store[f"{USER}/dashboards/2026-10"]
+check("ignored money in or out changes no total", d["views"]["EUR"]["totalExpenses"] == 40.0)
+check("ignored income isn't detected salary", d["views"]["EUR"]["autoDetectedFilipaSalary"] == 0)
+check("ignored ones aren't waiting for review or pending", d["needsReviewCount"] == 0 and d["pendingCount"] == 0)
+check("the AI isn't asked to categorize an ignored one", not main._awaiting_auto_category({**new_tx("SHOP"), "ignored": True}))
+check("...but is once it counts again", main._awaiting_auto_category(new_tx("SHOP")))
+
 print("\nALL PASSED" if failures == 0 else f"\n{failures} FAILED")
 sys.exit(1 if failures else 0)
