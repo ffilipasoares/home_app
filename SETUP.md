@@ -220,6 +220,29 @@ If you'd already imported Revolut CSVs for the same months, those
 transactions will now appear twice (CSV rows and synced rows have
 different IDs). Delete the CSV-imported ones for those months.
 
+## 10b. Investments tab
+
+The Investments tab sets up four accounts the first time you open it:
+
+- **T212 Stocks ISA** — read through Trading 212's API. In the Trading 212
+  app, switch to the Stocks ISA, then Settings → API (Beta) → Generate API
+  key, allowing only *Account data* and *Portfolio* (nothing that can
+  trade). Tap the account on the Investments tab and paste the key and
+  secret. They're checked with Trading 212, stored in `bankSecrets/{uid}`
+  (which the app can never read) and never shown again.
+- **T212 Cash ISA** — Trading 212's API doesn't cover Cash ISAs: type the
+  balance and update it now and then.
+- **Degiro** — no official API, and broker passwords are never stored:
+  add each share or fund (search by name, ticker or ISIN) with how many
+  you hold, and change the number when you buy more.
+- **Google (Schwab)** — the number of vested GOOGL shares; update it at
+  each vest.
+
+Prices for Degiro and Schwab come from Yahoo Finance's public quote
+endpoint, at each sync (13:00 and 23:00), whenever you save, and with the
+Refresh button (at most once a minute). Nothing to deploy beyond the usual
+`firebase deploy`; no keys or secrets to set up for prices.
+
 ## 11. Switching the app to a different Google account
 
 Only one Google account can use the app. To make another one the owner,
@@ -289,6 +312,7 @@ python3 scripts/test_fixed_expenses.py   # fixed expenses' categories on the Das
 python3 scripts/test_categories.py       # the AI uses the categories in Settings
 python3 scripts/test_sync_limit.py       # Sync now: 2 a day
 python3 scripts/test_review_fixes.py     # refunds, projection split, closed months, learned rules
+python3 scripts/test_investments.py      # Investments tab: Trading 212, prices, totals, history
 ```
 
 `scripts/test_enable_banking.py` talks to the real Enable Banking API

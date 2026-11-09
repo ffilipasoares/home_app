@@ -213,3 +213,73 @@ export type DashboardDoc = Partial<Omit<DashboardView, "currency" | "rates" | "r
   views?: Partial<Record<DisplayCurrency, DashboardView>>;
   updatedAt: number;
 };
+
+// --- Investments (functions/investments.py) ---------------------------------
+
+/** An amount in each display currency. */
+export type MoneyIn = Partial<Record<DisplayCurrency, number>>;
+
+/** A share or fund you keep up to date by hand: its symbol and how many. */
+export type InvestmentHolding = {
+  id: string;
+  /** Yahoo Finance symbol, e.g. GOOGL, VWCE.DE. */
+  symbol: string;
+  name?: string;
+  quantity: number;
+  /** Optional: what you paid in total, in the share's own currency, for the gain. */
+  invested?: number | null;
+};
+
+/** users/{uid}/settings/investments: the accounts, edited on the Investments tab. */
+export type InvestmentAccountSetting = {
+  id: string;
+  label: string;
+  /** trading212: read through its API · holdings: shares you enter · cash: a balance you enter. */
+  kind: "trading212" | "holdings" | "cash";
+  /** cash: the balance's currency. */
+  currency?: DisplayCurrency;
+  balance?: number;
+  holdings?: InvestmentHolding[];
+};
+export type InvestmentSettings = { accounts: InvestmentAccountSetting[] };
+
+export type ValuedHolding = {
+  id?: string;
+  symbol: string;
+  name: string;
+  quantity: number;
+  price: number | null;
+  /** The currency of `price` (and of `invested` for a hand-kept holding). */
+  currency: string | null;
+  priceCurrency?: string;
+  valueIn: MoneyIn | null;
+  investedIn: MoneyIn | null;
+  /** The price couldn't be fetched this time: the last one is shown. */
+  stale?: boolean;
+};
+
+export type ValuedAccount = {
+  id: string;
+  label: string;
+  kind: InvestmentAccountSetting["kind"];
+  valueIn: MoneyIn;
+  gainIn: MoneyIn | null;
+  cashIn?: MoneyIn | null;
+  holdings: ValuedHolding[];
+  error: string | null;
+  /** trading212: whether an API key is saved. */
+  connected?: boolean;
+  stale?: boolean;
+};
+
+/** users/{uid}/investments/current, written by every refresh. */
+export type InvestmentsDoc = {
+  accounts: ValuedAccount[];
+  totalIn: MoneyIn;
+  gainIn: MoneyIn | null;
+  date: string;
+  updatedAt: number;
+};
+
+/** users/{uid}/investmentHistory/{YYYY-MM-DD}: the totals once a day. */
+export type InvestmentHistoryPoint = { date: string; totalIn: MoneyIn; accounts: Record<string, MoneyIn> };

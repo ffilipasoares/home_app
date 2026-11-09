@@ -714,7 +714,30 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    4. **Consent-expiry handling — built.** A Dashboard banner when the
       consent is under 7 days from lapsing, or once a sync finds it
       expired, linking to Reconnect in Settings.
-4. **Phase 3 (stretch) — conversational "ask your finances".** A chat
+4. **Investments tab — built** (asked for by the user). Every investment
+   account in one place, kept apart from spending and money left
+   (`functions/investments.py`, `app/src/pages/Investments.tsx`):
+   - Trading 212 Stocks ISA through Trading 212's public API (HTTP Basic,
+     a read-only key and secret per account, stored in `bankSecrets/{uid}`;
+     the API covers Invest and Stocks ISA accounts only).
+   - Trading 212 Cash ISA as a balance you type in (not in the API).
+   - Degiro and Google stock at Schwab as holdings you keep up to date (a
+     symbol and a quantity; only vested Google shares, decided by the
+     user). Degiro has no official API and broker passwords are never
+     stored, so no unofficial login-based access either.
+   - Prices from Yahoo Finance's public chart endpoint (no key), pence
+     quotes turned into pounds; the last known price is kept, marked
+     stale, if a lookup fails. Totals in EUR and GBP at today's ECB rate.
+   - Refreshed by the twice-daily sync, by a trigger on
+     `users/{uid}/settings/investments`, and by a Refresh button (at most
+     once a minute; Trading 212 rate-limits its API). Each refresh writes
+     `investments/current` and that day's `investmentHistory/{date}`,
+     which feeds the value-over-time chart (history starts the day it's
+     turned on).
+   - The tab: total value and gain (where the amount invested is known),
+     a 100% bar of where it is by account, total value over time, and each
+     account with its holdings.
+5. **Phase 3 (stretch) — conversational "ask your finances".** A chat
    affordance in the dashboard ("how much on dining out in June vs May?"),
    read-only, grounded in the same Firestore data. A prior attempt at this
    was built, then reverted at the user's request to keep Phase 2 next in

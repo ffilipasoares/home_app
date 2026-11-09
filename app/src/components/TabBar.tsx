@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChartPieIcon, LayoutGridIcon, ReceiptTextIcon, Settings2Icon } from "lucide-react";
+import { ChartPieIcon, LayoutGridIcon, LineChartIcon, ReceiptTextIcon, Settings2Icon } from "lucide-react";
 
 const TABS = [
   { to: "/", label: "Dashboard", icon: LayoutGridIcon, end: true },
   { to: "/transactions", label: "Transactions", icon: ReceiptTextIcon, end: false },
   { to: "/analysis", label: "Analysis", icon: ChartPieIcon, end: false },
+  { to: "/investments", label: "Investments", icon: LineChartIcon, end: false },
   { to: "/settings", label: "Settings", icon: Settings2Icon, end: false },
 ];
 
@@ -13,7 +14,7 @@ export function TabBar() {
   return (
     <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-40 flex justify-center">
       <div className="pb-safe w-full max-w-[440px] border-t border-line bg-surface/95 backdrop-blur">
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {TABS.map(({ to, label, icon: Icon, end }) => (
             <li key={to}>
               <NavLink
@@ -27,7 +28,7 @@ export function TabBar() {
               >
                 {({ isActive }) => (
                   <>
-                    <span className="relative flex h-8 w-14 items-center justify-center">
+                    <span className="relative flex h-8 w-12 items-center justify-center">
                       {isActive && (
                         <motion.span
                           layoutId="tab-pill"

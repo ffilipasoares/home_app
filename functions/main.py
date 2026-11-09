@@ -45,6 +45,7 @@ from google.cloud.firestore_v1 import DELETE_FIELD, Increment
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 import bank_sync
+import investments
 from budget_month import resolve_budget_month
 from categorize import CONFIDENCE_THRESHOLD, CategorizationError, categorize_transaction
 from category_rules import find_exact_category_rule, is_rule_key, list_recent_category_rules
@@ -575,3 +576,110 @@ def daily_bank_sync(event: scheduler_fn.ScheduledEvent) -> None:
         for month in months:
             recompute_month(uid, month)
         print(f"daily_bank_sync recalculated uid={uid}: {len(months)} month(s)")
+        _refresh_investments_safely(uid)
+
+
+# --- Investments ----------------------------------------------------------------
+
+# "Refresh" in the app: at most once a minute (Trading 212 rate-limits its API).
+_INVESTMENTS_REFRESH_GAP_MS = 60_000
+
+
+def _refresh_investments_safely(uid: str, fetched: dict[str, dict] | None = None) -> dict | None:
+    try:
+        return investments.refresh_investments(uid, fetched)
+    except Exception:  # noqa: BLE001 - never let investments break the bank sync
+        traceback.print_exc()
+        return None
+
+
+@firestore_fn.on_document_written(document="users/{uid}/settings/investments")
+def on_investment_settings_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
+    """Editing holdings, a cash balance or the accounts in the app values
+    them again straight away."""
+    if event.data.after is not None and event.data.after.exists:
+        _refresh_investments_safely(event.params["uid"])
+
+
+def _investment_account(uid: str, account_id: str, kind: str) -> dict:
+    settings = (
+        firestore.client().collection("users").document(uid).collection("settings").document("investments").get().to_dict()
+        or {}
+    )
+    account = next((a for a in settings.get("accounts") or [] if a.get("id") == account_id), None)
+    if not account or account.get("kind") != kind:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.NOT_FOUND, "No such account.")
+    return account
+
+
+@https_fn.on_call()
+def investments_connect(req: https_fn.CallableRequest) -> dict:
+    """Saves a Trading 212 API key and secret for one account, after checking
+    Trading 212 accepts them. Stored server-side only, never sent back."""
+    uid = _require_owner(req)
+    account_id = str(req.data.get("accountId") or "")
+    key = str(req.data.get("key") or "").strip()
+    secret = str(req.data.get("secret") or "").strip()
+    _investment_account(uid, account_id, "trading212")
+    if not key or not secret:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.INVALID_ARGUMENT, "Enter both the API key and the secret.")
+    try:
+        fetched = investments.fetch_trading212(key, secret)
+    except investments.InvestmentError as err:
+        if err.status in (401, 403):
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Trading 212 didn't accept that key. Check it's for this account and allows account data and portfolio.",
+            ) from err
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, f"Couldn't reach Trading 212 ({err}).") from err
+    firestore.client().collection("bankSecrets").document(uid).set(
+        {"trading212Keys": {account_id: {"key": key, "secret": secret, "savedAt": int(time.time() * 1000)}}}, merge=True
+    )
+    _refresh_investments_safely(uid, {account_id: fetched})
+    return {"ok": True}
+
+
+@https_fn.on_call()
+def investments_disconnect(req: https_fn.CallableRequest) -> dict:
+    """Forgets a Trading 212 account's API key."""
+    uid = _require_owner(req)
+    account_id = str(req.data.get("accountId") or "")
+    firestore.client().collection("bankSecrets").document(uid).set(
+        {"trading212Keys": {account_id: DELETE_FIELD}}, merge=True
+    )
+    _refresh_investments_safely(uid)
+    return {"ok": True}
+
+
+@https_fn.on_call(timeout_sec=120)
+def investments_refresh(req: https_fn.CallableRequest) -> dict:
+    """The Investments tab's Refresh button."""
+    uid = _require_owner(req)
+    current = (
+        firestore.client().collection("users").document(uid).collection("investments").document("current").get().to_dict()
+        or {}
+    )
+    if int(time.time() * 1000) - int(current.get("updatedAt") or 0) < _INVESTMENTS_REFRESH_GAP_MS:
+        return {"refreshed": False}
+    return {"refreshed": _refresh_investments_safely(uid) is not None}
+
+
+@https_fn.on_call()
+def investments_lookup(req: https_fn.CallableRequest) -> dict:
+    """Finds the symbol for a share or fund (by name, ticker or ISIN), with
+    its current price for the best matches, when adding a holding."""
+    _require_owner(req)
+    query = str(req.data.get("query") or "").strip()
+    if len(query) < 2:
+        return {"results": []}
+    try:
+        results = investments.search_symbols(query)
+    except investments.InvestmentError as err:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.UNAVAILABLE, f"Couldn't search right now ({err}).") from err
+    for r in results[:3]:
+        try:
+            q = investments.quote(r["symbol"])
+            r.update({"price": q["price"], "currency": q["currency"]})
+        except investments.InvestmentError:
+            pass
+    return {"results": results}

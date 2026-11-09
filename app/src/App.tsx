@@ -4,6 +4,7 @@ import { AuthGate } from "./components/AuthGate";
 import { Dashboard } from "./pages/Dashboard";
 import { Transactions } from "./pages/Transactions";
 import { Analysis } from "./pages/Analysis";
+import { Investments } from "./pages/Investments";
 import { Settings } from "./pages/Settings";
 import { BankCallback } from "./pages/BankCallback";
 import { SelectedMonthProvider } from "./components/SelectedMonthProvider";
@@ -21,6 +22,7 @@ export function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/analysis" element={<Analysis />} />
+            <Route path="/investments" element={<Investments />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/bank-callback" element={<BankCallback />} />
           </Routes>
