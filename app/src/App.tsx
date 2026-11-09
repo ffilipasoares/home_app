@@ -1,4 +1,6 @@
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Route, Routes, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { AuthProvider } from "./lib/auth";
 import { AuthGate } from "./components/AuthGate";
 import { Dashboard } from "./pages/Dashboard";
@@ -18,17 +20,25 @@ export function App() {
       <HashRouter>
         <AuthGate>
           <SelectedMonthProvider>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/analysis" element={<Analysis />} />
-            <Route path="/investments" element={<Investments />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/bank-callback" element={<BankCallback />} />
-          </Routes>
+            <PageBoundary>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/transactions" element={<Transactions />} />
+                <Route path="/analysis" element={<Analysis />} />
+                <Route path="/investments" element={<Investments />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/bank-callback" element={<BankCallback />} />
+              </Routes>
+            </PageBoundary>
           </SelectedMonthProvider>
         </AuthGate>
       </HashRouter>
     </AuthProvider>
   );
+}
+
+/** A crash on one page shows an error there; switching tab tries again. */
+function PageBoundary({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  return <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>;
 }

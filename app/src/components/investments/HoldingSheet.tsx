@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { BottomSheet, SheetBody } from "../ui/BottomSheet";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { ValueLine, type TimeFormat } from "./ValueLine";
-import { formatCurrency, formatMoney } from "../../lib/format";
+import { formatCurrency, formatMoney, isCurrencyCode } from "../../lib/format";
+import { ErrorBoundary } from "../ErrorBoundary";
 import { fetchPriceHistory, type PriceHistory, type PriceRange } from "../../lib/investments";
 import type { DisplayCurrency, ValuedHolding } from "../../types";
 
@@ -31,7 +32,11 @@ export function HoldingSheet({
 }) {
   return (
     <BottomSheet open={holding !== null} onClose={onClose} title={holding?.name ?? ""}>
-      {holding && <HoldingBody key={holding.symbol} holding={holding} accountLabel={accountLabel} currency={currency} />}
+      {holding && (
+        <ErrorBoundary compact resetKey={holding.symbol}>
+          <HoldingBody key={holding.symbol} holding={holding} accountLabel={accountLabel} currency={currency} />
+        </ErrorBoundary>
+      )}
     </BottomSheet>
   );
 }
@@ -40,7 +45,14 @@ function HoldingBody({ holding, accountLabel, currency }: { holding: ValuedHoldi
   const [range, setRange] = useState<PriceRange>("1y");
   const [history, setHistory] = useState<Record<string, PriceHistory>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const data = history[range];
+  const fetched = history[range];
+  // The feed's currency, else the one the holding was valued in; a feed
+  // without one must not break the sheet.
+  const data = fetched && {
+    ...fetched,
+    points: (fetched.points ?? []).filter((p) => Number.isFinite(p.price) && Number.isFinite(p.t)),
+    currency: isCurrencyCode(fetched.currency) ? fetched.currency : (holding.priceCurrency ?? holding.currency ?? ""),
+  };
   const error = errors[range];
 
   // Each range is fetched once, the first time it's picked.

@@ -26,5 +26,6 @@ export function categoryColors(categories: CategoryDef[]): (id: string) => strin
 
 /** 12 345 -> "12,3K", for axis ticks and column caps. */
 export function compactMoney(value: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency, notation: "compact", maximumFractionDigits: 1 }).format(value);
+  const style = /^[A-Za-z]{3}$/.test(currency) ? { style: "currency" as const, currency } : {};
+  return new Intl.NumberFormat(undefined, { ...style, notation: "compact", maximumFractionDigits: 1 }).format(value);
 }

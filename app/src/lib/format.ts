@@ -1,10 +1,19 @@
 const formatters = new Map<string, Intl.NumberFormat>();
 
+/** A currency code Intl accepts (three letters), so formatting never throws. */
+export function isCurrencyCode(currency: string | null | undefined): currency is string {
+  return typeof currency === "string" && /^[A-Za-z]{3}$/.test(currency);
+}
+
 function formatterFor(currency: string): Intl.NumberFormat {
   let formatter = formatters.get(currency);
   if (!formatter) {
     // Always cents: amounts are shown as they are, never rounded to whole euros/pounds.
-    formatter = new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // A missing or odd code (a price feed without one) shows the plain number
+    // rather than throwing and blanking the screen.
+    formatter = isCurrencyCode(currency)
+      ? new Intl.NumberFormat(undefined, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     formatters.set(currency, formatter);
   }
   return formatter;
