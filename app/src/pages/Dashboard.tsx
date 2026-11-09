@@ -11,6 +11,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { IconTile } from "../components/ui/IconTile";
 import { Notice, RowGroup, SectionHeader, ValueRow } from "../components/ui/ValueRow";
 import { MonthSwitcher } from "../components/MonthSwitcher";
+import { CurrencyToggle } from "../components/CurrencyToggle";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { categoryLook } from "../lib/categoryLook";
 import { MoneyLeftHero } from "../components/dashboard/MoneyLeftHero";
@@ -96,7 +97,7 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader>
+      <PageHeader action={<CurrencyToggle uid={uid} value={currency} />}>
         <MonthSwitcher firstMonth={firstMonth} />
       </PageHeader>
 

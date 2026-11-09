@@ -171,5 +171,39 @@ doc = investments.refresh_investments("u1")
 isa = next(a for a in doc["accounts"] if a["id"] == "t212-isa")
 check("not connected: shown as such, counts 0", isa["connected"] is False and isa["valueIn"] == {})
 
+# --- Price history for a holding's chart ----------------------------------------------
+check("Trading 212 tickers read as Yahoo symbols",
+      [investments._t212_guess(t) for t in ("AAPL_US_EQ", "BRK.B_US_EQ", "VUSAl_EQ", "VWCEd_EQ", "WEIRD_EQ", "GOOGL")]
+      == ["AAPL", "BRK-B", "VUSA.L", "VWCE.DE", None, None])
+history_calls = []
+
+
+def history_json(url, headers=None):
+    history_calls.append(url)
+    if "/v1/finance/search" in url:
+        return {"quotes": [{"symbol": "IUSQ.DE", "longname": "iShares MSCI ACWI", "quoteType": "ETF", "exchDisp": "XETRA"}]}
+    symbol = url.split("/v8/finance/chart/")[1].split("?")[0]
+    if symbol not in ("IUSQ.DE", "VUSA.L"):
+        raise investments.InvestmentError("HTTP 404", 404)
+    currency = "GBp" if symbol == "VUSA.L" else "EUR"
+    return {"chart": {"result": [{"meta": {"symbol": symbol, "currency": currency, "longName": symbol},
+                                  "timestamp": [1700000000, 1700086400, 1700172800],
+                                  "indicators": {"quote": [{"close": [7000.0, None, 7100.0]}]}}]}}
+
+
+investments._get_json = history_json
+h = investments.price_history("VUSAl_EQ", "1y")
+check("history: pence turned into pounds, gaps skipped, times in ms",
+      h["currency"] == "GBP" and [p["price"] for p in h["points"]] == [70.0, 71.0] and h["points"][0]["t"] == 1700000000000)
+check("history: daily points for a year", "interval=1d" in history_calls[-1] and "range=1y" in history_calls[-1])
+history_calls.clear()
+h = investments.price_history("ISACm_EQ", "1mo", isin="IE00B6R52259")
+check("history: unknown listing found again by ISIN", h["symbol"] == "IUSQ.DE" and any("search" in u for u in history_calls))
+try:
+    investments.price_history("GOOGL", "10y")
+    check("history: unknown range refused", False)
+except investments.InvestmentError:
+    check("history: unknown range refused", True)
+
 print("\nALL PASSED" if failures == 0 else f"\n{failures} FAILED")
 sys.exit(1 if failures else 0)

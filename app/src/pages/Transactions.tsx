@@ -15,6 +15,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
 import { Notice } from "../components/ui/ValueRow";
 import { MonthSwitcher } from "../components/MonthSwitcher";
+import { CurrencyToggle } from "../components/CurrencyToggle";
 import { TransactionRow } from "../components/transactions/TransactionRow";
 import { FilterSheet } from "../components/transactions/FilterSheet";
 import { TransactionSheet } from "../components/transactions/TransactionSheet";
@@ -131,14 +132,17 @@ export function Transactions() {
       <PageHeader
         title="Transactions"
         action={
-          <button
-            type="button"
-            onClick={() => openEditor(null)}
-            aria-label="Add transaction"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-canvas transition-[transform,background-color] duration-150 ease-out hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:scale-95"
-          >
-            <PlusIcon className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <CurrencyToggle uid={uid} value={currency} />
+            <button
+              type="button"
+              onClick={() => openEditor(null)}
+              aria-label="Add transaction"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-canvas transition-[transform,background-color] duration-150 ease-out hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:scale-95"
+            >
+              <PlusIcon className="h-5 w-5" />
+            </button>
+          </div>
         }
       />
 

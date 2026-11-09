@@ -64,3 +64,20 @@ export async function lookupSymbol(queryText: string): Promise<SymbolMatch[]> {
   });
   return res.data.results;
 }
+
+export type PriceRange = "1d" | "1mo" | "6mo" | "1y" | "5y";
+export type PriceHistory = { symbol: string; name: string; currency: string; points: { t: number; price: number }[] };
+
+/** A holding's prices for its chart (functions/investments.py, price_history). */
+export async function fetchPriceHistory(
+  holding: { symbol: string; isin?: string; name?: string },
+  range: PriceRange,
+): Promise<PriceHistory> {
+  const res = await httpsCallable<object, PriceHistory>(functions, "investments_price_history")({
+    symbol: holding.symbol,
+    isin: holding.isin ?? "",
+    name: holding.name ?? "",
+    range,
+  });
+  return res.data;
+}

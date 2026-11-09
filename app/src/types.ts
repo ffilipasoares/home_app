@@ -245,7 +245,9 @@ export type InvestmentSettings = { accounts: InvestmentAccountSetting[] };
 
 export type ValuedHolding = {
   id?: string;
+  /** A Yahoo symbol, or a Trading 212 ticker (AAPL_US_EQ) for a synced account. */
   symbol: string;
+  isin?: string;
   name: string;
   quantity: number;
   price: number | null;

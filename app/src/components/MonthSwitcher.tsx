@@ -3,7 +3,7 @@ import { useSelectedMonth } from "../lib/selectedMonth";
 import { currentMonth, formatMonth, shiftMonth } from "../lib/month";
 
 const ARROW =
-  "flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-150 hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-30";
+  "flex h-8 w-8 min-[390px]:h-9 min-[390px]:w-9 items-center justify-center rounded-full text-muted transition-colors duration-150 hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-30";
 
 /**
  * Previous/next month, shared by the Dashboard and Transactions (the
@@ -40,10 +40,10 @@ export function MonthSwitcher({ variant = "title", firstMonth }: { variant?: "ti
   }
   return (
     <div className="flex w-full items-center justify-between">
-      <h1 className="text-[28px] font-bold tracking-tight" aria-live="polite">
+      <h1 className="whitespace-nowrap text-[22px] font-bold tracking-tight min-[390px]:text-[24px] min-[420px]:text-[28px]" aria-live="polite">
         {label}
       </h1>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center">
         {prev}
         {next}
       </div>

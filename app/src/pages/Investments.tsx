@@ -19,6 +19,8 @@ import { Notice, RowGroup, SectionHeader, ValueRow } from "../components/ui/Valu
 import { IncomeSplitBar } from "../components/analysis/IncomeSplitBar";
 import { ValueLine } from "../components/investments/ValueLine";
 import { AccountSheet } from "../components/investments/AccountSheet";
+import { HoldingSheet } from "../components/investments/HoldingSheet";
+import { CurrencyToggle } from "../components/CurrencyToggle";
 import { ENTRY_CURRENCY } from "../types";
 import type {
   DisplayCurrency,
@@ -28,6 +30,7 @@ import type {
   InvestmentsDoc,
   UserSettings,
   ValuedAccount,
+  ValuedHolding,
 } from "../types";
 
 /** What the account row says under its name. */
@@ -58,6 +61,7 @@ export function Investments() {
   const [current, setCurrent] = useState<InvestmentsDoc | null>(null);
   const [history, setHistory] = useState<InvestmentHistoryPoint[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openHolding, setOpenHolding] = useState<{ holding: ValuedHolding; account: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string>();
 
@@ -88,8 +92,13 @@ export function Investments() {
   }));
   const points = history
     .filter((p) => p.totalIn?.[currency] !== undefined)
-    .map((p) => ({ date: p.date, value: p.totalIn[currency] as number }));
+    .map((p) => ({ t: new Date(`${p.date}T12:00:00`).getTime(), value: p.totalIn[currency] as number }));
   const open = list.find((a) => a.id === openId) ?? null;
+  // Every holding across accounts, biggest first, each tappable for its chart.
+  const holdings = list
+    .flatMap((a) => (valuedById.get(a.id)?.holdings ?? []).map((h) => ({ holding: h, account: a.label, accountId: a.id })))
+    .filter(({ holding }) => holding.quantity > 0)
+    .sort((x, y) => (y.holding.valueIn?.[currency] ?? 0) - (x.holding.valueIn?.[currency] ?? 0));
 
   async function refresh() {
     setRefreshing(true);
@@ -112,15 +121,18 @@ export function Investments() {
       <PageHeader
         title="Investments"
         action={
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={refreshing}
-            aria-label="Refresh prices and balances"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-surface text-muted transition-colors hover:text-ink disabled:opacity-50"
-          >
-            <RefreshCwIcon className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-2">
+            <CurrencyToggle uid={uid} value={currency} />
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={refreshing}
+              aria-label="Refresh prices and balances"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-surface text-muted transition-colors hover:text-ink disabled:opacity-50"
+            >
+              <RefreshCwIcon className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} aria-hidden="true" />
+            </button>
+          </div>
         }
       />
 
@@ -155,15 +167,55 @@ export function Investments() {
           <SectionHeader id="value-heading" title="Total value over time" note="One point a day, from each day's last refresh." />
           <div className="mt-4 rounded-2xl bg-surface p-4">
             {points.length >= 2 ? (
-              <ValueLine points={points} currency={currency} />
+              <ValueLine points={points} currency={currency} label="Total value" />
             ) : (
               <p className="py-6 text-center text-sm text-muted">The chart fills in from today, one point a day.</p>
             )}
           </div>
         </section>
 
+        {holdings.length > 0 && (
+          <section aria-labelledby="holdings-heading">
+            <SectionHeader id="holdings-heading" title="Holdings" note="Tap one for its price chart." />
+            <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl bg-surface">
+              {holdings.map(({ holding: h, account, accountId }) => {
+                const value = h.valueIn?.[currency];
+                const invested = h.investedIn?.[currency];
+                const gain = value !== undefined && invested !== undefined ? value - invested : undefined;
+                return (
+                  <li key={`${accountId}-${h.symbol}`}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenHolding({ holding: h, account })}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+                    >
+                      <span className="h-8 w-1 shrink-0 rounded-full" style={{ backgroundColor: colorOf(accountId) }} aria-hidden="true" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-medium">{h.name}</span>
+                        <span className="block truncate text-[13px] text-muted">
+                          {account} · {h.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })} shares
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block text-[15px] font-semibold tabular-nums">
+                          {value !== undefined ? formatMoney(value, currency) : "—"}
+                        </span>
+                        {gain !== undefined && (
+                          <span className={`block text-[12px] tabular-nums ${gain >= 0 ? "text-positive" : "text-negative"}`}>
+                            {formatMoney(gain, currency, { signed: true })}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
+
         <section aria-labelledby="accounts-heading">
-          <SectionHeader id="accounts-heading" title="Accounts" />
+          <SectionHeader id="accounts-heading" title="Accounts" note="Tap one to connect it or update what's in it." />
           <RowGroup className="mt-3">
             {list.map((a) => {
               const valued = valuedById.get(a.id);
@@ -195,6 +247,12 @@ export function Investments() {
         </p>
       </div>
 
+      <HoldingSheet
+        holding={openHolding?.holding ?? null}
+        accountLabel={openHolding?.account ?? ""}
+        currency={currency}
+        onClose={() => setOpenHolding(null)}
+      />
       <AccountSheet
         open={open !== null}
         onClose={() => setOpenId(null)}

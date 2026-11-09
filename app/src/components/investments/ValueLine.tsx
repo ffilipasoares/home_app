@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ACCENT, SURFACE, compactMoney } from "../../lib/chartColors";
 import { formatMoney } from "../../lib/format";
-import { formatShortDate } from "../../lib/month";
 
 const HEIGHT = 180;
 const PAD = { top: 16, right: 14, bottom: 24, left: 48 };
@@ -18,13 +17,37 @@ function useWidth<T extends HTMLElement>() {
   return [ref, width] as const;
 }
 
+/** "9 Nov" for an axis tick, "9 Nov 2026" in the readout; "14:30" for a day's prices. */
+export type TimeFormat = "time" | "day" | "month";
+
+function formatT(t: number, format: TimeFormat, long: boolean): string {
+  const d = new Date(t);
+  if (format === "time") {
+    const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    return long ? `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${time}` : time;
+  }
+  if (format === "month" && !long) return d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
+  return d.toLocaleDateString("en-GB", long ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short" });
+}
+
 /**
- * Total value day by day: one series in the accent with a soft wash, the
- * latest point marked, a crosshair that reads out the date and value. The
- * y-axis starts near the lowest value rather than 0, so day-to-day moves
- * are visible; its three ticks say where it starts.
+ * A value over time: one series in the accent with a soft wash, the latest
+ * point marked, a crosshair that reads out the time and value. The y-axis
+ * starts near the lowest value rather than 0, so moves are visible; its
+ * three ticks say where it starts.
  */
-export function ValueLine({ points, currency }: { points: { date: string; value: number }[]; currency: string }) {
+export function ValueLine({
+  points,
+  currency,
+  timeFormat = "day",
+  label = "Value",
+}: {
+  /** t in ms, oldest first. */
+  points: { t: number; value: number }[];
+  currency: string;
+  timeFormat?: TimeFormat;
+  label?: string;
+}) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const values = points.map((p) => p.value);
@@ -56,7 +79,7 @@ export function ValueLine({ points, currency }: { points: { date: string; value:
         width={width}
         height={HEIGHT}
         role="img"
-        aria-label={`Total value from ${formatShortDate(points[0].date)} (${formatMoney(points[0].value, currency)}) to ${formatShortDate(points[last].date)} (${formatMoney(points[last].value, currency)}).`}
+        aria-label={`${label} from ${formatT(points[0].t, timeFormat, true)} (${formatMoney(points[0].value, currency)}) to ${formatT(points[last].t, timeFormat, true)} (${formatMoney(points[last].value, currency)}).`}
         style={{ touchAction: "pan-y" }}
         onPointerMove={(e) => pick(e.clientX, e.currentTarget)}
         onPointerDown={(e) => pick(e.clientX, e.currentTarget)}
@@ -82,7 +105,7 @@ export function ValueLine({ points, currency }: { points: { date: string; value:
             fontSize={11}
             fill="#71717A"
           >
-            {formatShortDate(points[i].date).replace(/ \d{4}$/, "")}
+            {formatT(points[i].t, timeFormat, false)}
           </text>
         ))}
 
@@ -107,7 +130,7 @@ export function ValueLine({ points, currency }: { points: { date: string; value:
           style={{ left: tipLeft }}
           role="status"
         >
-          <p className="text-muted">{formatShortDate(points[hover].date)}</p>
+          <p className="text-muted">{formatT(points[hover].t, timeFormat, true)}</p>
           <p className="mt-0.5 font-semibold tabular-nums">{formatMoney(points[hover].value, currency)}</p>
         </div>
       )}

@@ -665,6 +665,19 @@ def investments_refresh(req: https_fn.CallableRequest) -> dict:
 
 
 @https_fn.on_call()
+def investments_price_history(req: https_fn.CallableRequest) -> dict:
+    """Prices for one holding's chart on the Investments tab."""
+    _require_owner(req)
+    data = req.data or {}
+    try:
+        return investments.price_history(
+            str(data.get("symbol") or ""), str(data.get("range") or "1y"), str(data.get("isin") or ""), str(data.get("name") or "")
+        )
+    except investments.InvestmentError as err:
+        raise https_fn.HttpsError(https_fn.FunctionsErrorCode.NOT_FOUND, f"No price history found ({err}).") from err
+
+
+@https_fn.on_call()
 def investments_lookup(req: https_fn.CallableRequest) -> dict:
     """Finds the symbol for a share or fund (by name, ticker or ISIN), with
     its current price for the best matches, when adding a holding."""

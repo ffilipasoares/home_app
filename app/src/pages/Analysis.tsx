@@ -14,6 +14,7 @@ import { daysSinceMonthStart, fixedByCategoryOf, projectMonth, projectionNote } 
 import { PageHeader } from "../components/ui/PageHeader";
 import { SectionHeader } from "../components/ui/ValueRow";
 import { MonthSwitcher } from "../components/MonthSwitcher";
+import { CurrencyToggle } from "../components/CurrencyToggle";
 import { CategoryIcon } from "../components/CategoryIcon";
 import { SpendingDonut, type Slice } from "../components/analysis/SpendingDonut";
 import { IncomeSplitBar, type Part } from "../components/analysis/IncomeSplitBar";
@@ -175,7 +176,7 @@ export function Analysis() {
 
   return (
     <>
-      <PageHeader>
+      <PageHeader action={<CurrencyToggle uid={uid} value={currency} />}>
         <MonthSwitcher firstMonth={availableMonths.length ? availableMonths[availableMonths.length - 1] : undefined} />
       </PageHeader>
 

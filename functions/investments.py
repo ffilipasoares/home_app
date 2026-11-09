@@ -84,6 +84,7 @@ def fetch_trading212(key: str, secret: str) -> dict:
         holdings.append(
             {
                 "symbol": instrument.get("ticker") or "",
+                "isin": instrument.get("isin") or "",
                 "name": instrument.get("name") or instrument.get("ticker") or "",
                 "quantity": float(p.get("quantity") or 0),
                 "price": price,
@@ -151,6 +152,73 @@ def search_symbols(query: str, limit: int = 6) -> list[dict]:
             }
         )
     return found[:limit]
+
+
+# How far back each chart range goes, and how often a point.
+HISTORY_RANGES = {"1d": "5m", "1mo": "1d", "6mo": "1d", "1y": "1d", "5y": "1wk"}
+
+# Trading 212 tickers ("AAPL_US_EQ", "VUSAl_EQ") -> Yahoo exchange suffixes.
+_T212_SUFFIX = {"l": ".L", "d": ".DE", "a": ".AS", "p": ".PA", "m": ".MI", "e": ".MC", "s": ".SW", "b": ".BR"}
+
+
+def _t212_guess(ticker: str) -> str | None:
+    if not ticker.endswith("_EQ"):
+        return None
+    base = ticker[: -len("_EQ")]
+    if base.endswith("_US"):
+        return base[: -len("_US")].replace(".", "-")  # BRK.B -> BRK-B
+    if len(base) > 1 and base[-1] in _T212_SUFFIX and base[:-1].isupper():
+        return base[:-1] + _T212_SUFFIX[base[-1]]
+    return None
+
+
+def price_history(symbol: str, range_: str, isin: str = "", name: str = "") -> dict:
+    """Prices for a holding's chart: {symbol, name, currency, points: [{t, price}]}
+    with t in ms. `symbol` can be a Yahoo symbol or a Trading 212 ticker; a
+    ticker that can't be read is looked up by ISIN, then by name."""
+    if range_ not in HISTORY_RANGES:
+        raise InvestmentError(f"Unknown range {range_}")
+    candidates = [s for s in (_t212_guess(symbol), None if symbol.endswith("_EQ") else symbol) if s]
+    last_error: InvestmentError | None = None
+    for attempt in range(2):
+        for candidate in candidates:
+            try:
+                return _chart(candidate, range_)
+            except InvestmentError as err:
+                last_error = err
+        if attempt == 0:
+            found = []
+            for q in (isin, name):
+                if q and not found:
+                    try:
+                        found = search_symbols(q, 1)
+                    except InvestmentError:
+                        pass
+            candidates = [found[0]["symbol"]] if found else []
+    raise last_error or InvestmentError(f"No prices for {symbol}")
+
+
+def _chart(symbol: str, range_: str) -> dict:
+    params = urllib.parse.urlencode({"range": range_, "interval": HISTORY_RANGES[range_]})
+    data = _get_json(f"{_YAHOO}/v8/finance/chart/{urllib.parse.quote(symbol)}?{params}")
+    results = (data.get("chart") or {}).get("result") or []
+    if not results:
+        raise InvestmentError(f"No prices for {symbol}")
+    result = results[0]
+    meta = result.get("meta") or {}
+    closes = (((result.get("indicators") or {}).get("quote") or [{}])[0] or {}).get("close") or []
+    raw_currency = meta.get("currency") or ""
+    points = []
+    for t, close in zip(result.get("timestamp") or [], closes):
+        if close is None:
+            continue
+        price, _ = _normalize_price(float(close), raw_currency)
+        points.append({"t": int(t) * 1000, "price": price})
+    if not points:
+        raise InvestmentError(f"No prices for {symbol}")
+    _, currency = _normalize_price(0.0, raw_currency)
+    return {"symbol": meta.get("symbol") or symbol, "name": meta.get("longName") or meta.get("shortName") or symbol,
+            "currency": currency, "points": points}
 
 
 # --- Refresh -------------------------------------------------------------------

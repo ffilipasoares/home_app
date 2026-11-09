@@ -737,6 +737,13 @@ Realistic total: **under $1–2/month**, likely $0 most months.
    - The tab: total value and gain (where the amount invested is known),
      a 100% bar of where it is by account, total value over time, and each
      account with its holdings.
+   - Each holding opens a price chart (1D, 1M, 6M, 1Y, 5Y) from Yahoo's
+     chart endpoint (`investments_price_history`); a Trading 212 ticker
+     (AAPL_US_EQ, VUSAl_EQ) is read as a Yahoo symbol, or looked up by
+     ISIN, then name.
+   - A € | £ switch in the header of every main page sets the app
+     currency (the same setting as in Settings); every amount is already
+     stored in both, so switching recalculates nothing.
 5. **Phase 3 (stretch) — conversational "ask your finances".** A chat
    affordance in the dashboard ("how much on dining out in June vs May?"),
    read-only, grounded in the same Firestore data. A prior attempt at this
